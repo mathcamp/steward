@@ -4,3 +4,5 @@ build
 _build
 doc/ref/*
 *.egg-info
+dist
+__version__.py
