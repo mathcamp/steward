@@ -57,11 +57,11 @@ def get_log_config(conf):
         'root': {
             'handlers': ['console', 'filelog'] if conf['log_dir'] \
                 else ['console'],
-            'level':LEVEL_MAP[conf['log_level']],
+            'level':LEVEL_MAP[conf['log_level'].lower()],
         },
         'loggers': {
             'steward': {
-                'level': LEVEL_MAP[conf['log_level']],
+                'level': LEVEL_MAP[conf['log_level'].lower()],
                 'handlers': ['console', 'filelog'] if conf['log_dir'] \
                     else ['console'],
                 'propagate': False,
@@ -69,7 +69,7 @@ def get_log_config(conf):
         },
         'handlers': {
             'console':{
-                'level': LEVEL_MAP[conf['log_level']],
+                'level': LEVEL_MAP[conf['log_level'].lower()],
                 'class':'logging.StreamHandler',
                 'formatter': 'simple',
             },
@@ -272,7 +272,7 @@ class CMDLineOptionsParserMixin(object):
         if is_server:
             logging.config.dictConfig(get_log_config(config))
         else:
-            logging.basicConfig(level=LEVEL_MAP[config['log_level']])
+            logging.basicConfig(level=LEVEL_MAP[config['log_level'].lower()])
 
         self.configure(args)
         if is_server:
