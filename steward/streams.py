@@ -239,15 +239,26 @@ class BaseStream(object):
 
         """
         if self._socket.socket_type in (zmq.REQ, zmq.REP):
-            self._socket.send(self.serialize(args[0]))
+            self._send_multipart(self.serialize(args[0]))
         elif self._socket.socket_type == zmq.PUB:
-            self._socket.send_multipart([args[0], self.serialize(args[1])])
+            self._send_multipart(args[0], self.serialize(args[1]))
         elif self._socket.socket_type == zmq.ROUTER:
-            self._socket.send_multipart([args[0], '', self.serialize(args[1])])
+            self._send_multipart(args[0], '', self.serialize(args[1]))
         elif self._socket.socket_type == zmq.DEALER:
-            self._socket.send_multipart(['', self.serialize(args[0])])
+            self._send_multipart('', self.serialize(args[0]))
         else:
             raise Exception("not implemented yet")
+
+    def _send_multipart(self, *args):
+        """Convert args to binary strings and send over the socket"""
+        sock_args = []
+        for arg in args:
+            if isinstance(arg, unicode):
+                sock_args.append(arg.encode('utf-8'))
+            else:
+                sock_args.append(arg)
+            assert type(sock_args[-1]) == str
+        self._socket.send_multipart(sock_args)
 
     def close(self):
         """Close the stream"""
