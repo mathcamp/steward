@@ -48,5 +48,7 @@ log_dir: /var/log/steward
 # aliases:
 #   dep: deploy package=mypackage
 #   ls: list_workers
-#
 #aliases: {}
+
+# Name of remote server to connect to via ssh
+#server: None

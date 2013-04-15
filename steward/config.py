@@ -39,6 +39,7 @@ SERVER_DEFAULTS = {
     'worker_threads': 10,
 }
 CLIENT_DEFAULTS = {
+    'server': None,
     'aliases': {},
 }
 
@@ -255,6 +256,10 @@ class CMDLineOptionsParserMixin(object):
                 help="Size of the thread pool for blocking calls")
             server_group.add_argument('--log-dir',
                 help="Directory to write log files")
+        else:
+            client_group = parser.add_argument_group()
+            client_group.add_argument('--server',
+                help="Remote server to connect to via ssh")
 
         self.options(parser)
         args = vars(parser.parse_args(argv))

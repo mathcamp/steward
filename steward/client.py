@@ -9,6 +9,7 @@ Clients for connecting to the server
 """
 import time
 import zmq
+import zmq.ssh
 import traceback
 import threading
 import cmd
@@ -18,6 +19,7 @@ import types
 import pprint
 import logging
 from . import config
+from . import util
 from . import streams
 
 LOG = logging.getLogger(__name__)
@@ -45,8 +47,16 @@ class Client(object):
         if conf is None:
             conf = config.load_config()
         self.conf = conf
-        self._stream = streams.default_stream(conf['stream'],
-            conf['server_socket'], zmq.REQ, False)
+        c = zmq.Context()
+        socket = c.socket(zmq.REQ)
+
+        if conf['server'] is not None:
+            zmq.ssh.tunnel_connection(socket, conf['server_socket'], conf['server'])
+        else:
+            socket.connect(conf['server_socket'])
+
+        self._stream=util.load_class(conf['stream'], 'steward.streams')(socket)
+
         self.subscriptions = {}
         self._callback = None
         self._substream = None
