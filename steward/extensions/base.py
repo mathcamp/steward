@@ -10,9 +10,7 @@ Basic extensions for the server
 import inspect
 import time
 import logging
-from tornado import ioloop, gen
-from datetime import timedelta
-from steward import public, invisible, threaded, private
+from steward import public, invisible, private
 
 LOG = logging.getLogger(__name__)
 
@@ -32,15 +30,14 @@ def pub(self, channel, **kwargs):
     object
     
     """
-    callback = kwargs.pop('callback')
     self.publish(channel, kwargs)
-    callback(True)
+    return True
 
 @invisible
-def commands(self, callback=None):
+def commands(self):
     """List all available server commands"""
     lines = [(name, doc) for name, doc in _visible_members(self)]
-    callback(lines)
+    return lines
 
 def _visible_members(object):
     """Find all visible members of an object"""
@@ -61,22 +58,7 @@ def _visible_members(object):
         yield name, doc
 
 @invisible
-def sleep(self, t=1, callback=None):
-    """
-    Sleep then return
-
-    Parameters
-    ----------
-    t : float
-        Number of seconds to sleep
-
-    """
-    ioloop.IOLoop.instance().add_timeout(timedelta(seconds=float(t)),
-        lambda: callback(True))
-
-@invisible
-@threaded
-def sync_sleep(self, t=1):
+def sleep(self, t=1):
     """
     Sleep in a background thread, then return
 
@@ -96,18 +78,25 @@ class Tasks(object):
         self.server = server
 
     @public
-    def running(self, callback=None):
+    def running(self):
         """Get the list of tasks currently being run"""
         running_tasks = '\n'.join(["{}: {}".format(t.name, d.isoformat())
             for t, d in self.server.tasklist.running_tasks])
-        callback(running_tasks)
+        return running_tasks
 
     @public
-    def schedule(self, callback=None):
+    def schedule(self):
         """Get the list of scheduled tasks"""
         schedule = '\n'.join(["{}: {}".format(t.name, t.next_exec.isoformat())
             for t in self.server.tasklist.tasks])
-        callback(schedule)
+        return schedule
+
+def _run_in_bg(self, command, *args, **kwargs):
+    """Run a command and log any exceptions"""
+    try:
+        command(*args, **kwargs)
+    except:
+        LOG.exception("Error while running in the background!")
 
 @private
 def background(self, command, *args, **kwargs):
@@ -123,13 +112,5 @@ def background(self, command, *args, **kwargs):
         The function to call
 
     """
-    ioloop.IOLoop.instance().add_callback(lambda:_run_async_cmd(command, *args,
-        **kwargs))
-
-@gen.engine
-def _run_async_cmd(cmd, *args, **kwargs):
-    """Run a command and catch exceptions"""
-    try:
-        yield gen.Task(cmd, *args, **kwargs)
-    except:
-        LOG.exception("Error while running in the background!")
+    fxn_args = [self, command] + list(args)
+    self.pool.apply_async(_run_in_bg, fxn_args, kwargs)

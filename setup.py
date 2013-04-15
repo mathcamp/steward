@@ -20,7 +20,6 @@ DATA = {
     },
     'install_requires': {
         'setuptools',
-        'tornado',
         'pyzmq',
         'PyYAML',
         'croniter',

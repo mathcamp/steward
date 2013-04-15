@@ -1,60 +1,59 @@
-"""
-.. module:: tests
-   :synopsis: Common utilities for tests
+"""Unit and integration tests"""
+from steward import config, server
+import unittest
 
-.. moduleauthor:: Steven Arcangeli <steven@highlig.ht>
-
-Common utilities for tests
-
-"""
-from tornado import gen
-import inspect
-import functools
-
-class AsyncTestGeneratorMetaclass(type):
+class BaseTest(unittest.TestCase):
     """
-    A metaclass for constructing asynchronous tests
+    Base class for steward tests
     
-    Any TestCase that has this as the __metaclass__ can use the ``yield
-    gen.Task`` syntax for their tests. Any test that uses that must put
-    ``self.stop()`` at the end of the test case. The metaclass will enforce
-    this when your test is loaded.
-
-    Notes
-    -----
-    Here's an example::
-
-        class TestAsynchronous(unittest.TestCase):
-            __metaclass__ = AsyncTestGeneratorMetaclass
-        
-            def test_asynchronous_call(self):
-                retval = yield gen.Task(_do_something_asynchronous)
-                self.assertTrue(retval)
-                self.stop()
-
     """
-    def __new__(mcs, name, bases, props):
-        def async_wrapper(wrapped):
-            """Generate an asynchronous test from this method"""
-            source = inspect.getsource(wrapped)
-            if source.split()[-1].strip() != "self.stop()":
-                raise Exception("Asynchronous tests must end with self.stop()!"
-                                " [%s]" % wrapped.__name__)
+    @classmethod
+    def setUpClass(cls):
+        super(BaseTest, cls).setUpClass()
+        cls.config = config.bare_config(None)
+        cls.config['extension_mods'] = []
 
-            @functools.wraps(wrapped)
-            def wrapper(self):
-                """Wrap a gen.engine test"""
-                gen.engine(wrapped)(self)
-                self.wait()
-            return wrapper
+    def setUp(self):
+        super(BaseTest, self).setUp()
+        self.server = server.Server(self.config)
 
-        for propname, prop in props.items():
-            if not propname.startswith("test") or not inspect.isfunction(prop):
-                continue
-            if not prop.__doc__:
-                raise Exception("Bitch!  Write some fucking docstrings "
-                                "on your tests! [%s]" % propname)
-            if inspect.isgeneratorfunction(prop):
-                props[propname] = async_wrapper(prop)
-        return super(AsyncTestGeneratorMetaclass, mcs).__new__(mcs,
-                                                    name, bases, props)
+    def call_server(self, cmd, *args, **kwargs):
+        """
+        Simulate a client call to the server without actually going through zmq
+
+        Parameters are the same you would pass to
+        :py:meth:`steward.client.Client.cmd`
+
+        """
+        msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs}
+        return self.server.handle_message(msg)
+
+    def assert_result_equal(self, first, second, msg=None):
+        """
+        Assert that a response from the server is equal to a value
+
+        Parameters
+        ----------
+        first : object
+            The server response
+        second : object
+            The value to test the server response against
+        msg : str, optional
+            Message to print if the assertion fails
+
+        """
+        self.assertEqual(first.get('val'), second, msg)
+
+    def assert_result_exc(self, result, msg=None):
+        """
+        Assert that the server response is an exception
+
+        Parameters
+        ----------
+        result : object
+            The server response
+        msg : str, optional
+            Message to print if the assertion fails
+
+        """
+        self.assertTrue('exc' in result, msg)

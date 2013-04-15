@@ -12,18 +12,17 @@ import traceback
 import types
 import inspect
 import zmq
-import zmq.eventloop
+from threading import Thread
 from collections import defaultdict
 from multiprocessing.pool import ThreadPool
-from tornado import ioloop, gen
+from multiprocessing.queues import Empty
+from multiprocessing import Queue
 from . import streams
 from . import tasks
 
-zmq.eventloop.ioloop.install()
-
 LOG = logging.getLogger(__name__)
 
-class Server(object):
+class Server(Thread):
     """
     The server that handles tasks, events, and running commands from clients
 
@@ -36,6 +35,8 @@ class Server(object):
     ----------
     running : bool
         True while the server is running
+    starting : bool
+        True during the startup process of running the server
     conf : dict
         The configuration dictionary
     event_handlers : dict
@@ -47,41 +48,30 @@ class Server(object):
 
     """
     def __init__(self, conf):
-        self.running = True
+        super(Server, self).__init__()
+        self.running = False
+        self.starting = False
         self.conf = conf
         self.event_handlers = defaultdict(list)
         self.tasklist = tasks.TaskList()
-        self.pool = ThreadPool(processes=conf['worker_threads'])
+        self.pool = None
+        self._stream = None
+        self._pubstream = None
+        self._start_methods = []
+        self._apply_extensions(conf['extension_mods'])
+        self._queue = None
 
-        # This socket accepts commands from multiple clients at a time
-        streams.default_stream(conf['stream'], conf['server_socket'],
-            zmq.ROUTER, True, self.client_callback)
-
-        # This socket publishes events to clients
-        self._pubstream = streams.default_stream(conf['stream'],
-            conf['server_channel_socket'], zmq.PUB, True, lambda *args:None)
-
-        self.apply_extensions(conf['extension_mods'])
-        ioloop.IOLoop.instance().add_callback(self.tasklist.start)
-
-    @gen.engine
-    def client_callback(self, stream, uid, msg):
+    def handle_message(self, msg):
         """
-        The method called when a client sends the server a message
+        Handle a client message and return a response
 
         Parameters
         ----------
-        stream : :py:class:`~steward.streams.BaseStream`
-            The stream that received the message
-        uid : str
-            The uid of the client that sent the message
         msg : dict
-            The message sent by the client
+            The command passed up by the client
 
         """
-        LOG.info("Got client command: %s" % msg)
         command = msg.get('cmd')
-
         # If the command exists on the Server object, run that
         try:
             attr_list = command.split('.')
@@ -90,8 +80,7 @@ class Server(object):
                 method = getattr(method, attr)
             
             if getattr(method, '__public__', False):
-                value = yield gen.Task(method, *msg.get('args', []),
-                    **msg.get('kwargs', {}))
+                value = method(*msg.get('args', []), **msg.get('kwargs', {}))
                 if isinstance(value, Exception):
                     # If the sys.exc_info is stored on the exception, raise
                     # that to preserve the traceback
@@ -106,7 +95,7 @@ class Server(object):
             LOG.exception(e)
             retval = {'exc':traceback.format_exc()}
         finally:
-            stream.send(uid, retval)
+            return retval
 
     def publish(self, name, data=None):
         """
@@ -128,27 +117,95 @@ class Server(object):
                 return
         self._pubstream.send(name, data)
 
+    def _handle_async(self, uid, msg):
+        """
+        Handle a client message and send a response
+
+        Parameters
+        ----------
+        uid : str
+            The uid of the client
+        msg : dict
+            The command passed up by the client
+
+        """
+        retval = self.handle_message(msg)
+        self._queue.put((uid, retval))
+
+    def start(self):
+        # we have to create the thread pool from the Main thread
+        self.pool = ThreadPool(processes=self.conf['worker_threads'])
+        super(Server, self).start()
+    
+    def initialize_streams(self):
+        """Initialize the zmq streams"""
+        if self._stream is None:
+            # This socket accepts commands from multiple clients at a time
+            self._stream = streams.default_stream(self.conf['stream'],
+                self.conf['server_socket'], zmq.ROUTER, True)
+
+        if self._pubstream is None:
+            # This socket publishes events to clients
+            self._pubstream = streams.default_stream(self.conf['stream'],
+                self.conf['server_channel_socket'], zmq.PUB, True)
+
     def run(self):
-        """Start the ioloop that runs the server"""
-        io_loop = ioloop.IOLoop.instance()
+        """Listen for client commands and process them"""
         try:
+            self.starting = True
+            if self.pool is None:
+                self.pool = ThreadPool(processes=self.conf['worker_threads'])
+            self._queue = Queue()
+            self.tasklist.pool = self.pool
             self.tasklist.start()
+            self.initialize_streams()
             LOG.info("Starting server")
-            io_loop.start()
-            return 0
-        except KeyboardInterrupt:
-            pass
+            for meth in self._start_methods:
+                meth(self)
+            self.running = True
+            self.starting = False
+            while self.running:
+                try:
+                    uid = 's'
+                    msg = {}
+                    uid, msg = self._stream.recv(timeout=0.1)
+                    LOG.info("Got client command: %s" % msg)
+                    self.pool.apply_async(self._handle_async, (uid, msg))
+                except zmq.ZMQError:
+                    pass
+
+                try:
+                    uid, response = self._queue.get(block=False)
+                    self._stream.send(uid, response)
+                except Empty:
+                    pass
+
         finally:
             self.stop()
-            io_loop.stop()
+            self.close()
             LOG.info("Server stopped")
-        return 1
+
+    def close(self):
+        """
+        Close the server's threads and streams
+
+        This is not thread-safe!
+
+        """
+        if self.pool:
+            self.pool.close()
+            self.pool.terminate()
+        if self._queue:
+            self._queue.close()
+        if self._stream:
+            self._stream.close()
 
     def stop(self):
         """Stop the server"""
-        self.pool.close()
+        self.running = False
+        self.tasklist.stop()
 
-    def apply_extensions(self, mods):
+    def _apply_extensions(self, mods):
         """
         Apply extensions modules
 
@@ -160,17 +217,14 @@ class Server(object):
             List of modules to load the extensions from
 
         """
-        init_methods = []
         for mod in mods:
             members = inspect.getmembers(mod, callable)
             for name, member in members:
                 if name.startswith('_'):
                     continue
 
-                # If there is a method named 'init', add it to a list and run
-                # them all together after loading all extensions
-                if name == 'init':
-                    init_methods.append(member)
+                if name == 'on_start':
+                    self._start_methods.append(member)
                     continue
 
                 # If this is a task, add it to the tasklist
@@ -188,21 +242,10 @@ class Server(object):
 
                     if inspect.isclass(member):
                         instance = member(self)
-                        instance.__server__ = self
                         setattr(self, name, instance)
-                        continue
-
-                    argspec = inspect.getargspec(member)
-                    if 'callback' not in argspec.args and not argspec.keywords:
-                        raise Exception("server extension [{}] should take a "
-                            "'callback' keyword!".format(name))
-
-                    bound_method = types.MethodType(member, self, Server)
-                    setattr(self, name, bound_method)
-
-        for init_method in init_methods:
-            # Only run the init methods after all modules are loaded
-            init_method(self)
+                    else:
+                        bound_method = types.MethodType(member, self, Server)
+                        setattr(self, name, bound_method)
 
         # Order the event handlers by priority
         for handlers in self.event_handlers.itervalues():

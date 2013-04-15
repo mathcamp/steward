@@ -7,21 +7,20 @@
 Tests for :py:mod:`steward.server`
 
 """
-from tornado import gen
 from mock import MagicMock
-from . import util
 from steward.util import event_handler, public
+from steward import tests
 
 class ServerMods(object):
     """Test server extension module"""
-    def init(self, server):
-        """Init method for a server extension"""
-        server.ran_init = True
+    def on_start(self, server):
+        """Start method callback for a server extension"""
+        server.ran_on_start = True
 
     @public
-    def ping(self, server, callback=None):
+    def ping(self, server):
         """Public function in a server extension"""
-        callback('pong')
+        return 'pong'
 
     @event_handler('test_event', priority=50)
     def handle_test_event(self, server, data):
@@ -40,9 +39,8 @@ class MoreServerMods(object):
         """An event handler that returns True"""
         return True
 
-class TestCommands(util.IntegrationTest):
+class TestCommands(tests.BaseTest):
     """Tests for :py:mod:`steward.server`"""
-    timeout = 1
     @classmethod
     def setUpClass(cls):
         super(TestCommands, cls).setUpClass()
@@ -64,10 +62,9 @@ class TestCommands(util.IntegrationTest):
 
     def test_server_command(self):
         """The server should be able to run commands"""
-        retval = yield gen.Task(self.call_server, 'ping')
+        retval = self.call_server('ping')
         self.assert_result_equal(retval, 'pong')
-        self.stop()
 
     def test_ext_init(self):
-        """The server should apply the init methods inside extension modules"""
-        self.assertTrue(hasattr(self.server, 'ran_init'))
+        """The server should store the on_start methods from extensions"""
+        self.assertEqual(len(self.server._start_methods), 1)

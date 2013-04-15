@@ -9,8 +9,6 @@ Clients for connecting to the server
 """
 import time
 import zmq
-import zmq.eventloop
-import zmq.eventloop.zmqstream
 import traceback
 import threading
 import cmd
@@ -19,22 +17,19 @@ import inspect
 import types
 import pprint
 import logging
-from tornado import gen
 from . import config
 from . import streams
 
 LOG = logging.getLogger(__name__)
 
-class BaseClient(object):
+class Client(object):
     """
-    Abstract base class for clients
+    Basic client for connecting to Steward server
 
     Parameters
     ----------
-    conf : dict
-        Configuration dictionary
-    stream : :py:class:`steward.streams.BaseStream`
-        The stream that is connected to the server
+    conf : dict, optional
+        Configuration dictionary (default loads from config file)
 
     Attributes
     ----------
@@ -42,18 +37,24 @@ class BaseClient(object):
         Configuration dictionary
     subscriptions : dict
         Mapping of event names to callbacks
+    open : bool
+        True while streams are open, False after calling ``close()``
 
     """
-    def __init__(self, conf, stream):
+    def __init__(self, conf=None):
+        if conf is None:
+            conf = config.load_config()
         self.conf = conf
-        self._stream = stream
+        self._stream = streams.default_stream(conf['stream'],
+            conf['server_socket'], zmq.REQ, False)
         self.subscriptions = {}
         self._callback = None
         self._substream = None
+        self.open = True
 
     def _create_substream(self):
         """
-        Abstract method; override to return a SUB stream
+        Create the subscription stream
 
         Returns
         -------
@@ -61,6 +62,23 @@ class BaseClient(object):
             A stream created with a SUB socket
 
         """
+        if self._substream is not None:
+            return
+        self._substream = streams.default_stream(self.conf['stream'],
+            self.conf['server_channel_socket'], zmq.SUB, False)
+        thread = threading.Thread(target=self._poll)
+        thread.daemon = True
+        thread.start()
+
+    def _poll(self):
+        """Background loop that listens for events"""
+        while self.open:
+            try:
+                name, data = self._substream.recv(timeout=0.1)
+            except zmq.ZMQError:
+                continue
+            self._on_pub(name, data)
+        self.close()
 
     def cmd(self, command, *args, **kwargs):
         """
@@ -76,9 +94,16 @@ class BaseClient(object):
         Any args and kwargs will be serialized and passed up to the server as
         arguments for the command
 
-        """
+        Returns
+        -------
+        retval : dict
+            The dictionary response from the server
 
-    def _on_pub(self, stream, name, data):
+        """
+        self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs})
+        return self._stream.recv()
+
+    def _on_pub(self, name, data):
         """
         Callback when client receives a published event
 
@@ -95,19 +120,6 @@ class BaseClient(object):
         LOG.debug("Received event %s", name)
         self.subscriptions[name](name, data)
 
-    def _on_msg(self, stream, obj):
-        """
-        Callback when client receives a message from the server
-
-        stream : :py:class:`steward.streams.BaseStream`
-            The stream this came from
-        msg : object
-            The object sent back from the server (usually a dict)
-
-        """
-        self._callback(obj)
-        self._callback = None
-    
     def sub(self, channel, callback):
         """
         Subscribe to a certain event
@@ -116,14 +128,15 @@ class BaseClient(object):
         ----------
         channel : str
             Name of event to receive messages about
-        callback : fxn
+        callback : callable
             A function with the signature of callback(name, data)
 
         """
-        if self._substream is None:
-            self._substream = self._create_substream()
+        self._create_substream()
         self._substream.sub(channel)
         self.subscriptions[channel] = callback
+        # It takes a short amount of time for pyzmq to actually subscribe
+        time.sleep(0.01)
 
     def unsub(self, channel):
         """
@@ -135,93 +148,16 @@ class BaseClient(object):
             Name of event to stop receiving messages about
 
         """
-        if self._substream is None:
-            self._substream = self._create_substream()
+        self._create_substream()
         del self.subscriptions[channel]
         self._substream.unsub(channel)
 
     def close(self):
         """Close active streams"""
+        self.open = False
         self._stream.close()
         if self._substream:
             self._substream.close()
-
-class Client(BaseClient):
-    """
-    Synchronous client
-
-    Parameters
-    ----------
-    conf : dict, optional
-        Configuration dictionary (default loads from config file)
-
-    Attributes
-    ----------
-    open : bool
-        True while streams are open, False after calling ``close()``
-    
-    """
-    def __init__(self, conf=None):
-        if conf is None:
-            conf = config.load_config()
-        stream = streams.default_stream(conf['stream'],
-            conf['server_socket'], zmq.REQ, False)
-        super(Client, self).__init__(conf, stream)
-        self.open = True
-
-    def _create_substream(self):
-        stream = streams.default_stream(self.conf['stream'],
-            self.conf['server_channel_socket'], zmq.SUB, False)
-        thread = threading.Thread(target=self._poll)
-        thread.daemon = True
-        thread.start()
-        return stream
-
-    def _poll(self):
-        """Background loop that listens for events"""
-        while self.open:
-            if self._substream is None:
-                time.sleep(0.01)
-                continue
-            name, data = self._substream.recv()
-            self._on_pub(self._substream, name, data)
-    
-    def cmd(self, command, *args, **kwargs):
-        self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs})
-        return self._stream.recv()
-
-    def close(self):
-        self.open = False
-        super(Client, self).close()
-
-class AsyncClient(BaseClient):
-    """
-    Asynchronous client running on the tornado event loop
-
-    Parameters
-    ----------
-    conf : dict, optional
-        Configuration dictionary (default loads from config file)
-    
-    """
-    def __init__(self, conf=None):
-        if conf is None:
-            conf = config.load_config()
-        stream = streams.default_stream(conf['stream'],
-            conf['server_socket'], zmq.REQ, False, self._on_msg)
-        super(AsyncClient, self).__init__(conf, stream)
-
-    def _create_substream(self):
-        return streams.default_stream(self.conf['stream'],
-            self.conf['server_channel_socket'], zmq.SUB, False, self._on_pub)
-
-    @gen.engine
-    def cmd(self, command, *args, **kwargs):
-        callback = kwargs.pop('callback')
-        self._callback = yield gen.Callback('client_callback')
-        self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs})
-        retval = yield gen.Wait('client_callback')
-        callback(retval)
 
 def repl_command(fxn):
     """

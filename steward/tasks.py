@@ -9,9 +9,9 @@ Periodic tasks that get run on the server
 """
 import logging
 from croniter import croniter
-from datetime import datetime, timedelta
-from tornado import ioloop, gen
-from .util import threaded
+from datetime import datetime
+from threading import Thread
+import time
 
 LOG = logging.getLogger(__name__)
 
@@ -149,23 +149,32 @@ class Task(object):
             LOG.error("Error running %s", self.name)
             LOG.exception(e)
     
-class TaskList(object):
+class TaskList(Thread):
     """
     Container that runs schedule tasks
 
     Attributes
     ----------
+    pool : :py:class:`multiprocessing.pool.ThreadPool`
+        The pool to use to run tasks in the background. You must set
+        this before calling ``start()``
     tasks : list
         List of :py:class:`~steward.tasks.Task`s
     running_tasks : list
         List of (:py:class:`~steward.tasks.Task`,
         :py:class:`datetime.datetime`) of tasks that are currently
         running. The datetime is the time it started running.
+    running : bool
+        True if the tasklist is running
 
     """
     def __init__(self):
+        super(TaskList, self).__init__()
+        self.pool = None
+        self.daemon = True
         self.tasks = []
         self.running_tasks = []
+        self.running = True
 
     def add(self, new_task):
         """
@@ -181,29 +190,23 @@ class TaskList(object):
         self.tasks.append(new_task)
         self.tasks.sort(key=lambda x:x.next_exec)
 
-    def _sleep(self, duration, callback=None):
-        """Shortcut for asynchronous sleep"""
-        ioloop.IOLoop.instance().add_timeout(duration, callback)
-
-    @gen.engine
-    def _run_task(self, run_task):
+    def _run_task(self, task_to_run):
         """Run a task"""
-        task_key = (run_task, datetime.now())
+        task_key = (task_to_run, datetime.now())
         self.running_tasks.append(task_key)
-        yield gen.Task(threaded(run_task))
+        task_to_run()
         self.running_tasks.remove(task_key)
         
-    @gen.engine
-    def start(self):
-        """Start running the scheduled tasks. Non-blocking."""
-        while True:
+    def run(self):
+        """Start running the scheduled tasks"""
+        while self.running:
             if len(self.tasks) == 0:
-                yield gen.Task(self._sleep, timedelta(seconds=5))
+                time.sleep(1)
                 continue
 
             delta = self.tasks[0].next_exec - datetime.now()
             if delta.total_seconds() > 0:
-                yield gen.Task(self._sleep, delta)
+                time.sleep(delta.total_seconds())
                 continue
             cur_task = self.tasks[0]
             cur_task.reset_next_exec()
@@ -213,6 +216,8 @@ class TaskList(object):
                 self.tasks.pop(0)
 
             self.tasks.sort(key=lambda x:x.next_exec)
-            ioloop.IOLoop.instance().add_callback(cur_task)
-            # Sleep for a tiny amount of time so we never get stuck here
-            yield gen.Task(self._sleep, timedelta(seconds=0.01))
+            self.pool.apply_async(lambda:self._run_task(cur_task))
+
+    def stop(self):
+        """Stop running the tasklist"""
+        self.running = False

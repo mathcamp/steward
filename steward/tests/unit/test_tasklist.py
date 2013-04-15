@@ -8,25 +8,30 @@ Tests for :py:class:`steward.tasks.TaskList`
 
 """
 import sys
+import time
 from datetime import timedelta
 from mock import MagicMock
-from tornado import gen, ioloop
-from .util import IntegrationTest
 from steward.tasks import task, Task
+from steward import tests
+from multiprocessing.pool import ThreadPool
 
 @task('0 0 * * *')
 def echo_server_task(self):
     """This task just returns the instance it is bound to"""
     return self
 
-class TaskListTest(IntegrationTest):
+class TaskListTest(tests.BaseTest):
     """Tests for :py:class:`steward.tasks.TaskList`"""
-    timeout = 1
     @classmethod
     def setUpClass(cls):
         super(TaskListTest, cls).setUpClass()
         # Add this file as a module
         cls.config['extension_mods'].append(sys.modules[__name__])
+        cls.pool = ThreadPool(2)
+
+    def setUp(self):
+        super(TaskListTest, self).setUp()
+        self.server.tasklist.pool = self.pool
 
     def _get_task(self, name):
         """Find a bound task on the server by name"""
@@ -47,11 +52,9 @@ class TaskListTest(IntegrationTest):
         scheduled_task = Task(mock, lambda dt: dt + timedelta(seconds=0.01))
         self.server.tasklist.add(scheduled_task)
         self.server.tasklist.start()
-        ioloop.IOLoop.instance().add_timeout(timedelta(seconds=0.025),
-            (yield gen.Callback('sleep')))
-        yield gen.Wait('sleep')
+        time.sleep(0.025)
         self.assertEqual(mock.call_count, 2)
-        self.stop()
+        self.server.tasklist.stop()
 
     def test_task_removal(self):
         """A task is removed from the TaskList if the next time is None"""
@@ -67,13 +70,11 @@ class TaskListTest(IntegrationTest):
         single_task = Task(mock, _task_fxn)
         self.server.tasklist.add(single_task)
         self.server.tasklist.start()
-        ioloop.IOLoop.instance().add_timeout(timedelta(seconds=0.01),
-            (yield gen.Callback('sleep')))
-        yield gen.Wait('sleep')
+        time.sleep(0.01)
         with self.assertRaises(AttributeError):
             self._get_task('_task_fxn')
-
-        self.stop()
+        
+        self.server.tasklist.stop()
 
     def test_late_task_runs(self):
         """If a task is 'late', it still gets run"""
@@ -81,8 +82,7 @@ class TaskListTest(IntegrationTest):
         scheduled_task = Task(mock, lambda dt: dt - timedelta(minutes=3))
         self.server.tasklist.add(scheduled_task)
         self.server.tasklist.start()
-        ioloop.IOLoop.instance().add_timeout(timedelta(seconds=0.01),
-            (yield gen.Callback('sleep')))
-        yield gen.Wait('sleep')
+        time.sleep(0.01)
         mock.assert_any_call()
-        self.stop()
+
+        self.server.tasklist.stop()

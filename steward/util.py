@@ -8,10 +8,8 @@ Utility methods
 
 """
 import functools
-import sys
+import threading
 import logging
-from datetime import timedelta
-from tornado import gen, ioloop
 
 LOG = logging.getLogger(__name__)
 
@@ -122,40 +120,6 @@ def event_handler(name, priority=100):
         return fxn
     return decorator
 
-def threaded(fxn):
-    """
-    Decorator for synchronous, blocking server methods.
-
-    Since all server commands must be run asynchronously, this decorator
-    provides an easy way to turn a typical blocking call into a call run in a
-    background thread::
-    
-        @public
-        @threaded
-        def ls(self):
-            return subprocess.check_output(['ls'])
-
-    """
-    @functools.wraps(fxn)
-    def wrapper(self, *args, **kwargs):
-        """Wrap the blocking command"""
-        callback = kwargs.pop('callback')
-        def run_blocking_cmd():
-            """Run a blocking command in a thread"""
-            try:
-                retval = fxn(self, *args, **kwargs)
-            except Exception as e:
-                retval = e
-                retval.exc = sys.exc_info()
-            ioloop.IOLoop.instance().add_callback(lambda:callback(retval))
-        # If we're inside a namespace, load the pool off the server
-        if hasattr(self, 'pool'):
-            pool = self.pool
-        else:
-            pool = self.__server__.pool
-        pool.apply_async(run_blocking_cmd)
-    return wrapper
-
 def serialize(*args, **kwargs):
     """
     Decorator for server methods that should run one-at-a-time.
@@ -169,40 +133,31 @@ def serialize(*args, **kwargs):
 
         @public
         @serialize
-        @gen.engine
-        def deploy(self, callback=None):
-            result = yield gen.Task(_do_deploy)
-            callback(result)
+        def deploy(self):
+            return _do_deploy()
 
     Alternatively, you may make the serialized function return False
     immediately if it is already running, rather than queueing it for later::
 
         @public
         @serialize(blocking=False)
-        @gen.engine
-        def deploy(self, callback=None):
-            result = yield gen.Task(_do_deploy)
-            callback(result)
+        def deploy(self):
+            return _do_deploy()
 
     """
     def create_wrapper(blocking, fxn):
         """Create the wrapper for the serialized function"""
+        fxn.__lock__ = threading.RLock()
         @functools.wraps(fxn)
-        @gen.engine
         def wrapper(*args, **kwargs):
             """Wrapper for the serialized function"""
-            callback = kwargs.pop('callback')
-            while getattr(fxn, 'running', False):
-                if not blocking:
-                    callback(False)
-                    return
-                ioloop.IOLoop.instance().add_timeout(timedelta(seconds=0.1),
-                    (yield gen.Callback('sleep')))
-                yield gen.Wait('sleep')
-            fxn.running = True
-            result = yield gen.Task(fxn, *args, **kwargs)
-            fxn.running = False
-            callback(result)
+            if not fxn.__lock__.acquire(blocking=blocking):
+                return False
+            try:
+                result = fxn(*args, **kwargs)
+            finally:
+                fxn.__lock__.release()
+            return result
         return wrapper
 
     if args:
@@ -211,8 +166,6 @@ def serialize(*args, **kwargs):
         return functools.partial(create_wrapper, kwargs.pop('blocking'))
     else:
         raise TypeError("@serialize called with wrong args!")
-
-serialize.running = set()
 
 def load_class(path, default=None):
     """

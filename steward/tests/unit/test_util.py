@@ -7,48 +7,54 @@
 Test methods in :py:mod:`steward.util`
 
 """
-from tornado import testing, gen
-from steward import util, tests
+import unittest
+import time
+from threading import Thread
+from steward import util
 
 class ExpectedException(Exception):
     """Exception that we expect to see raised"""
 
-class TestUtil(testing.AsyncTestCase):
+class TestUtil(unittest.TestCase):
     """Test methods in :py:mod:`steward.util`"""
-    __metaclass__ = tests.AsyncTestGeneratorMetaclass
 
     def test_serialize_runs_fxn(self):
         """Functions decorated with @serialize should still be called"""
         @util.serialize
-        def my_fxn(callback=None):
+        def my_fxn():
             """Dummy function that returns a constant"""
-            callback('foobar')
-        retval = yield gen.Task(my_fxn)
+            return 'foobar'
+        retval = my_fxn()
         self.assertEqual(retval, 'foobar')
-
-        self.stop()
 
     def test_serialize_queues_fxns(self):
         """@serialize should queue calls to a function"""
         result_list = []
         @util.serialize
-        def no_callback(arg, callback=None):
-            """Dummy function that never calls the callback"""
+        def sleeper(arg):
+            """Dummy function that sleeps"""
             result_list.append(arg)
-        no_callback('a', callback=None)
-        no_callback('b', callback=None)
-        # Since the function never calls the callback, the function will never
-        # return. So the serialization should think that 'a' is still running
-        # when we call it on 'b'
+            time.sleep(0.1)
+
+        t1 = Thread(target=lambda:sleeper('a'))
+        t1.daemon = True
+        t2 = Thread(target=lambda:sleeper('b'))
+        t2.daemon = True
+        t1.start()
+        t2.start()
         self.assertEquals(result_list, ['a'])
 
     def test_non_blocking_serialize(self):
         """Non blocking @serialize should return immediately"""
         @util.serialize(blocking=False)
-        def dummy(callback=None):
-            """Dummy function that never calls the callback"""
-        dummy(callback=None)
-        retval = yield gen.Task(dummy)
+        def sleeper():
+            """Dummy function that sleeps"""
+            time.sleep(0.2)
+            return "sleeper returned"
+
+        t = Thread(target=sleeper)
+        t.daemon = True
+        t.start()
+        time.sleep(0.01)
+        retval = sleeper()
         self.assertTrue(retval is False)
-        
-        self.stop()

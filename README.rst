@@ -32,28 +32,12 @@ There are two basic ways to write your extensions. There's the raw way::
     from steward import public
 
     @public
-    def do_something(self, callback=None):
-        my_list = ['foo', 'bar', 'baz']
-        callback(my_list)
-
-The ``@public`` decorator will attach your method to the server object. Other
-extensions and clients will be able to call it. Note the callback syntax. The
-server is running using
-`tornado's <http://www.tornadoweb.org/en/stable/>`_ ioloop. If you need to
-do blocking operations or you find the callback syntax too confusing to work
-with at the beginning, there is another decorator that will run your method in
-a separate thread::
-
-    from steward import public, threaded
-
-    @public
-    @threaded
     def do_something(self):
         my_list = ['foo', 'bar', 'baz']
         return my_list
 
-Note that your code *will* be running in a separate thread, so be aware of that
-when accessing shared resources.
+The ``@public`` decorator will attach your method to the server object. Other
+extensions and clients will be able to call it.
 
 Often you may want to bundle up multiple commands into a common namespace. For
 that, you can create a class::
@@ -63,37 +47,37 @@ that, you can create a class::
     @public
     class Shop(object):
         @public
-        def stilton(self, callback=None):
-            callback("Sorry")
+        def stilton(self):
+            return "Sorry"
 
         @public
-        def brie(self, callback=None):
-            callback("No")
+        def brie(self):
+            return "No"
 
         @public
-        def camembert(self, callback=None):
-            callback("It's a little runny, sir")
+        def camembert(self):
+            return "It's a little runny, sir"
 
 These methods will be accessable as ``shop.stilton``, ``shop.brie``, and
 ``shop.camembert``.
 
-If you define a special method named ``init``, it will be run when your module
-loads. You can use this to set up static resources on the server object that
-your extensions need::
+If you define a special method named ``on_start``, it will be run when the
+server starts up.  You can use this to set up static resources on the server
+object that your extensions need::
 
     from steward import public
 
-    def init(self):
+    def on_start(self):
         self.orders = []
 
     @public
-    def order(self, item, callback=None):
+    def order(self, item):
         self.orders.append(item)
-        callback(True)
+        return True
 
     @public
-    def serve(self, callback=None):
-        callback(self.orders.pop(0))
+    def serve(self):
+        return self.orders.pop(0)
 
 Tasks
 -----
@@ -119,15 +103,15 @@ not send any events; all events come from extensions::
     import random
     from steward import public, event_handler
 
-    def init(self):
+    def on_start(self):
         self.weapons = ['banana', 'raspberry', 'pineapple', 'pointed stick']
 
-    def attack(self, callback=None):
+    def attack(self):
         payload = {
             'weapon':random.choice(self.weapons)
         }
         self.publish('attack', payload)
-        callback(True)
+        return True
 
     @event_handler('attack')
     def handle_attack(self, payload):

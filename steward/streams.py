@@ -10,6 +10,8 @@ ZeroMQ wrappers for convenient message passing
 import zlib
 import zmq
 import zmq.eventloop.zmqstream
+from datetime import datetime
+import time
 import pickle
 import logging
 from abc import ABCMeta, abstractmethod
@@ -25,8 +27,7 @@ from . import util
 
 LOG = logging.getLogger(__name__)
 
-def default_stream(stream_class, socket_addr, socket_type, server,
-    callback=None):
+def default_stream(stream_class, socket_addr, socket_type, server):
     """
     Convenience method for creating a :py:class:`~steward.streams.BaseStream`
 
@@ -40,8 +41,6 @@ def default_stream(stream_class, socket_addr, socket_type, server,
         Type of socket (ex. zmq.SUB, zmq.ROUTER, zmq.REQ, etc.)
     server : bool
         If true, will bind to the socket instead of connecting
-    callback : callable, optional
-        See the documentation on :py:class:`~steward.streams.BaseStream`
 
     Returns
     -------
@@ -49,9 +48,9 @@ def default_stream(stream_class, socket_addr, socket_type, server,
 
     Examples
     --------
-    With a standard configuration dictionary named ``conf``:
-        
-    >>> stream = default_stream(conf['stream'], conf['server_socket'], zmq.REQ, False)
+    With a standard configuration dictionary named ``conf``::
+
+        >>> stream = default_stream(conf['stream'], conf['server_socket'], zmq.REQ, False)
 
     """
     c = zmq.Context()
@@ -60,24 +59,16 @@ def default_stream(stream_class, socket_addr, socket_type, server,
         socket.bind(socket_addr)
     else:
         socket.connect(socket_addr)
-    return util.load_class(stream_class, 'steward.streams')(socket, callback)
+    return util.load_class(stream_class, 'steward.streams')(socket)
 
 class BaseStream(object):
     """
     Abstract base class for communicating over zeromq.
 
-    Handles both synchronous and asynchronous (using tornado's ioloop) communication, though not both simultaneously. How you instantiate the stream determines if it is synchronous or asynchronous. See the Parameters section below for more information.
-
     Parameters
     ----------
     socket : :py:class:`zmq.Socket`
         The socket to use for communication
-    callback : callable, optional
-        If specified, this callback will be called with any messages received
-        by the stream. If it is specified, the stream will run using tornado's
-        ioloop. If unspecified, the stream will be synchronous. For information
-        on the signature of the callback function, refer to the documentation
-        of the :py:meth:`~steward.streams.BaseStream.recv` method below.
     
     Notes
     -----
@@ -87,33 +78,8 @@ class BaseStream(object):
 
     """
     __metaclass__ = ABCMeta
-    def __init__(self, socket, callback=None):
+    def __init__(self, socket):
         self._socket = socket
-        self._callback = callback
-        if self._callback:
-            self._stream = zmq.eventloop.zmqstream.ZMQStream(socket)
-            self._stream.on_recv(self._on_msg)
-        else:
-            self._stream = self._socket
-
-    def _on_msg(self, message):
-        """
-        Asynchronous callback from ZMQStream
-
-        Parameters
-        ----------
-        message : list
-            The multipart representation of a zmq message
-
-        """
-        try:
-            args = self._translate_msg(message)
-            if isinstance(args, tuple):
-                self._callback(self, *args)
-            else:
-                self._callback(self, args)
-        except Exception as e:
-            LOG.exception(e)
 
     def sub(self, channel):
         """
@@ -205,14 +171,19 @@ class BaseStream(object):
 
         """
 
-    def recv(self):
+    def recv(self, timeout=None):
         """
         Blocking call to retrieve a message
 
+        Parameters
+        ----------
+        timeout : float
+            How long to block while waiting for a message
+
         Raises
         ------
-        AttributeError
-            If the stream is asynchronous
+        zmq.ZMQError
+            If called with a timeout and no message received after timeout
 
         Notes
         -----
@@ -231,9 +202,19 @@ class BaseStream(object):
             client_uid, obj = stream.recv()
 
         """
-        if self._callback is not None:
-            raise AttributeError("Asynchronous stream should not call recv()!")
-        msg = self._socket.recv_multipart()
+        if timeout is None:
+            msg = self._socket.recv_multipart()
+        else:
+            start = datetime.now()
+            while True:
+                try:
+                    msg = self._socket.recv_multipart(flags=zmq.NOBLOCK)
+                    break
+                except zmq.ZMQError:
+                    if (datetime.now() - start).total_seconds() > timeout:
+                        raise
+                time.sleep(0.1)
+                    
         return self._translate_msg(msg)
 
     def send(self, *args):
@@ -258,19 +239,19 @@ class BaseStream(object):
 
         """
         if self._socket.socket_type in (zmq.REQ, zmq.REP):
-            self._stream.send(self.serialize(args[0]))
+            self._socket.send(self.serialize(args[0]))
         elif self._socket.socket_type == zmq.PUB:
-            self._stream.send_multipart([args[0], self.serialize(args[1])])
+            self._socket.send_multipart([args[0], self.serialize(args[1])])
         elif self._socket.socket_type == zmq.ROUTER:
-            self._stream.send_multipart([args[0], '', self.serialize(args[1])])
+            self._socket.send_multipart([args[0], '', self.serialize(args[1])])
         elif self._socket.socket_type == zmq.DEALER:
-            self._stream.send_multipart(['', self.serialize(args[0])])
+            self._socket.send_multipart(['', self.serialize(args[0])])
         else:
             raise Exception("not implemented yet")
 
     def close(self):
         """Close the stream"""
-        self._stream.close()
+        self._socket.close()
 
 class PickleStream(BaseStream):
     """Stream that serializes with zlib and pickle"""

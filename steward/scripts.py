@@ -7,7 +7,6 @@
 Command line entry points
 
 """
-import sys
 import time
 import pprint
 import logging
@@ -42,12 +41,10 @@ class ServerCLI(config.CMDLineOptionsParserMixin):
         conf = self.get_config(True)
         from . import server
         srv = server.Server(conf)
-        exit_code = 0
         try:
-            exit_code = srv.run()
+            srv.run()
         except KeyboardInterrupt:
             pass
-        sys.exit(exit_code)
 
 class ClientREPL(config.CMDLineOptionsParserMixin):
     """Starts an interactive client"""
