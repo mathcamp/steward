@@ -18,6 +18,7 @@ import inspect
 import types
 import pprint
 import logging
+import shlex
 from . import config
 from . import util
 from . import streams
@@ -185,7 +186,7 @@ def repl_command(fxn):
         args = []
         kwargs = {}
         if arglist:
-            for arg in arglist.split():
+            for arg in shlex.split(arglist):
                 if '=' in arg:
                     split = arg.split('=')
                     kwargs[split[0]] = split[1]
@@ -228,7 +229,9 @@ class StewardREPL(cmd.Cmd):
 
         """
         self.client = Client(conf)
-        self.aliases = conf['aliases']
+        self.aliases = {}
+        for alias, longvalue in conf['aliases'].iteritems():
+            self.do_alias(alias + ' ' + longvalue)
         self.running = True
         self.commands = self.client.cmd('commands').get('val')
         for name, docs in self.commands:
@@ -304,8 +307,9 @@ class StewardREPL(cmd.Cmd):
             raise TypeError("Must call alias with a name and a target")
         command, tgt = args[:2]
         args = args[2:]
-        alias_args = ' '.join(args)
-        alias_kwargs = ' '.join([k + '=' + v for k, v in kwargs.iteritems()])
+        alias_args = ' '.join(["'" + a + "'" for a in args])
+        alias_kwargs = ' '.join(["'" + k + '=' + v + "'" for k, v in
+            kwargs.iteritems()])
         full_cmd = ' '.join((tgt, alias_args, alias_kwargs)).strip()
         self.aliases[command] = full_cmd
         def wrapper(self, other_args):
