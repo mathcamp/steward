@@ -32,6 +32,24 @@ def public(fxn):
     fxn.__public__ = True
     return fxn
 
+def private(fxn):
+    """
+    Decorator for methods on server that are attached to the server but not
+    callable from clients
+
+    Notes
+    -----
+    This would be used for methods that you want to expose to other extensions,
+    but do not want to expose to clients. For example::
+
+        @private
+        def persist(self, key, value):
+            return _store_in_database(key, value)
+
+    """
+    fxn.__public__ = False
+    return fxn
+
 def invisible(fxn):
     """
     Decorator for methods callable from, but not visible to, clients.

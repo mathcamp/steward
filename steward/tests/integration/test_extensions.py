@@ -11,7 +11,7 @@ import threading
 import sys
 from tornado import gen
 from . import util
-from steward.util import public, threaded
+from steward.util import public, threaded, private
 
 def unlisted_ping(self, callback=None):
     """server extension with no decorator"""
@@ -21,6 +21,16 @@ def unlisted_ping(self, callback=None):
 def ping(self, callback=None):
     """server extension with @public decorator"""
     callback('pong')
+
+@private
+def private_ping(self, callback=None):
+    """Private server extension"""
+    callback('pong')
+
+@public
+def private_ping_wrapper(self, callback=None):
+    """Public wrapper around the private ping"""
+    self.private_ping(callback=callback)
 
 @public
 @threaded
@@ -64,6 +74,18 @@ class TestDecorators(util.IntegrationTest):
         """Unlisted methods on the server should not be callable from client"""
         retval = yield gen.Task(self.call_server, 'unlisted_ping')
         self.assert_result_exc(retval)
+        self.stop()
+
+    def test_private_not_callable(self):
+        """Private methods on the server should not be callable from client"""
+        retval = yield gen.Task(self.call_server, 'private_ping')
+        self.assert_result_exc(retval)
+        self.stop()
+
+    def test_private_callable_from_server(self):
+        """Private methods should be attached to server"""
+        retval = yield gen.Task(self.call_server, 'private_ping_wrapper')
+        self.assert_result_equal(retval, 'pong')
         self.stop()
 
     def test_threaded_decorator(self):

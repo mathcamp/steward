@@ -89,7 +89,7 @@ class Server(object):
             for attr in attr_list:
                 method = getattr(method, attr)
             
-            if getattr(method, '__public__'):
+            if getattr(method, '__public__', False):
                 value = yield gen.Task(method, *msg.get('args', []),
                     **msg.get('kwargs', {}))
                 if isinstance(value, Exception):

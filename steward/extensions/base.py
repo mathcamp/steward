@@ -9,9 +9,12 @@ Basic extensions for the server
 """
 import inspect
 import time
-from tornado import ioloop
+import logging
+from tornado import ioloop, gen
 from datetime import timedelta
-from steward import public, invisible, threaded
+from steward import public, invisible, threaded, private
+
+LOG = logging.getLogger(__name__)
 
 @public
 def pub(self, channel, **kwargs):
@@ -105,3 +108,28 @@ class Tasks(object):
         schedule = '\n'.join(["{}: {}".format(t.name, t.next_exec.isoformat())
             for t in self.server.tasklist.tasks])
         callback(schedule)
+
+@private
+def background(self, command, *args, **kwargs):
+    """
+    Run an asynchronous command in the background
+
+    Use this when you want to start a command in a non-blocking way and do
+    not care about the return value.
+
+    Parameters
+    ----------
+    command : callable
+        The function to call
+
+    """
+    ioloop.IOLoop.instance().add_callback(lambda:_run_async_cmd(command, *args,
+        **kwargs))
+
+@gen.engine
+def _run_async_cmd(cmd, *args, **kwargs):
+    """Run a command and catch exceptions"""
+    try:
+        yield gen.Task(cmd, *args, **kwargs)
+    except:
+        LOG.exception("Error while running in the background!")
