@@ -95,7 +95,7 @@ class Server(Thread):
             LOG.exception(e)
             retval = {'exc':traceback.format_exc()}
         finally:
-            return retval
+            return retval #pylint: disable=W0150
 
     def publish(self, name, data=None):
         """
