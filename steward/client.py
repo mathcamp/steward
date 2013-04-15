@@ -136,7 +136,7 @@ class Client(object):
         self._substream.sub(channel)
         self.subscriptions[channel] = callback
         # It takes a short amount of time for pyzmq to actually subscribe
-        time.sleep(0.01)
+        time.sleep(0.05)
 
     def unsub(self, channel):
         """
