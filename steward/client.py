@@ -51,11 +51,13 @@ class Client(object):
         socket = c.socket(zmq.REQ)
 
         if conf['server'] is not None:
-            zmq.ssh.tunnel_connection(socket, conf['server_socket'], conf['server'])
+            zmq.ssh.tunnel_connection(socket, conf['server_socket'],
+                conf['server'])
         else:
             socket.connect(conf['server_socket'])
 
-        self._stream=util.load_class(conf['stream'], 'steward.streams')(socket)
+        self._stream = util.load_class(conf['stream'],
+            'steward.streams')(socket)
 
         self.subscriptions = {}
         self._callback = None
