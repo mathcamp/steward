@@ -77,8 +77,17 @@ class Client(object):
         """
         if self._substream is not None:
             return
-        self._substream = streams.default_stream(self.conf['stream'],
-            self.conf['server_channel_socket'], zmq.SUB, False)
+        c = zmq.Context()
+        socket = c.socket(zmq.SUB)
+        if self.conf['server'] is not None:
+            zmq.ssh.tunnel_connection(socket,
+                self.conf['server_channel_socket'], self.conf['server'])
+        else:
+            socket.connect(self.conf['server_channel_socket'])
+
+        self._substream = util.load_class(self.conf['stream'],
+            'steward.streams')(socket)
+
         thread = threading.Thread(target=self._poll)
         thread.daemon = True
         thread.start()
