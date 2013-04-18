@@ -76,7 +76,7 @@ def event_handler(name, priority=100):
     Parameters
     ----------
     name : str
-        The name of the event to handle
+        The name of the event to handle (regex-friendly)
     priority : int, optional
         The priority order of execution of this handler (lower goes first)
         (default 100)
@@ -111,6 +111,18 @@ def event_handler(name, priority=100):
             if order == 'eggs':
                 self.publish('order', 'spam')
                 return True
+
+    Event handlers work with regular expressions as well::
+
+        @event_handler('order/.*')
+        def handle_all_orders(self, order):
+            logging.info("Someone ordered a %s!", order)
+
+    Any capture groups defined in the regular expression will be passed in as arguments::
+
+        @event_handler('order/(.*)')
+        def handle_all_orders(self, order, meal):
+            logging.info("Someone ordered a %s for %s!", order, meal)
 
     """
     def decorator(fxn):

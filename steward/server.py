@@ -8,12 +8,12 @@ Steward server
 
 """
 import logging
+import re
 import traceback
 import types
 import inspect
 import zmq
 from threading import Thread
-from collections import defaultdict
 from multiprocessing.pool import ThreadPool
 from multiprocessing.queues import Empty
 from multiprocessing import Queue
@@ -47,16 +47,17 @@ class Server(Thread):
         A threadpool for running ``@threaded`` extensions
 
     """
+    _pubstream = None
+    _stream = None
+
     def __init__(self, conf):
         super(Server, self).__init__()
         self.running = False
         self.starting = False
         self.conf = conf
-        self.event_handlers = defaultdict(list)
+        self.event_handlers = []
         self.tasklist = tasks.TaskList()
         self.pool = None
-        self._stream = None
-        self._pubstream = None
         self._start_methods = []
         self._apply_extensions(conf['extension_mods'])
         self._queue = None
@@ -110,11 +111,17 @@ class Server(Thread):
 
         """
         LOG.info("Publishing event %s", name)
-        for handler in self.event_handlers.get(name, []):
-            if handler(self, data) is True:
-                LOG.info("Sending event %s has been blocked by "
-                    "event handler %s", name, handler.__name__)
-                return
+        for pattern, handler in self.event_handlers:
+            match = pattern.match(name)
+            if match:
+                if pattern.groups:
+                    retval = handler(self, data, *match.groups())
+                else:
+                    retval = handler(self, data)
+                if retval is True:
+                    LOG.info("Sending event %s has been blocked by "
+                        "event handler %s", name, handler.__name__)
+                    return
         self._pubstream.send(name, data)
 
     def _handle_async(self, uid, msg):
@@ -233,7 +240,8 @@ class Server(Thread):
                     self.tasklist.add(bound_task)
                 # If this is an event handler, add it to the event_handlers
                 elif hasattr(member, '__sub_event__'):
-                    self.event_handlers[member.__sub_event__].append(member)
+                    self.event_handlers.append(
+                        (re.compile(member.__sub_event__), member))
                 elif hasattr(member, '__public__'):
                     name = name.lower()
                     if hasattr(self, name):
@@ -248,5 +256,4 @@ class Server(Thread):
                         setattr(self, name, bound_method)
 
         # Order the event handlers by priority
-        for handlers in self.event_handlers.itervalues():
-            handlers.sort(key=lambda x:x.__priority__)
+        self.event_handlers.sort(key=lambda x:x[1].__priority__)

@@ -120,6 +120,9 @@ not send any events; all events come from extensions::
         except AttributeError:
             self.drop_16_ton_weight()
 
+You may use regular expressions in your event handler. See the documentation
+for examples.
+
 Using Extensions
 ----------------
 

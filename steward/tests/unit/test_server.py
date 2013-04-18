@@ -7,8 +7,7 @@
 Tests for :py:mod:`steward.server`
 
 """
-from mock import MagicMock
-from steward.util import event_handler, public
+from steward.util import public
 from steward import tests
 
 class ServerMods(object):
@@ -22,43 +21,12 @@ class ServerMods(object):
         """Public function in a server extension"""
         return 'pong'
 
-    @event_handler('test_event', priority=50)
-    def handle_test_event(self, server, data):
-        """An event handler in a server extension"""
-        data['handler_val'] = 2
-
-class MoreServerMods(object):
-    """Another test server extension module"""
-    @event_handler('test_event', priority=10)
-    def handle_test_event(self, server, data):
-        """A high-priority event handler in a server extension"""
-        data['handler_val'] = 1
-
-    @event_handler('stopped_event')
-    def handle_stopped_event(self, server, data):
-        """An event handler that returns True"""
-        return True
-
 class TestCommands(tests.BaseTest):
     """Tests for :py:mod:`steward.server`"""
     @classmethod
     def setUpClass(cls):
         super(TestCommands, cls).setUpClass()
-        cls.config['extension_mods'].extend((ServerMods(), MoreServerMods()))
-
-    def test_ordered_handlers(self):
-        """Events should be handled in priority order"""
-        stream_mock = self.server._pubstream = MagicMock()
-        self.server.publish('test_event', {})
-        expected_value = {'handler_val':2}
-        stream_mock.send.assert_called_once_with('test_event',
-            expected_value)
-
-    def test_event_stopper(self):
-        """Event should not be sent if handler returns True"""
-        stream_mock = self.server._pubstream = MagicMock()
-        self.server.publish('stopped_event', {})
-        self.assertFalse(stream_mock.send.called)
+        cls.config['extension_mods'].append(ServerMods())
 
     def test_server_command(self):
         """The server should be able to run commands"""
