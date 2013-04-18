@@ -10,6 +10,7 @@ Basic extensions for the server
 import inspect
 import time
 import logging
+from datetime import datetime
 from steward import public, invisible, private
 
 LOG = logging.getLogger(__name__)
@@ -87,16 +88,21 @@ class Tasks(object):
     @public
     def schedule(self):
         """Get the list of scheduled tasks"""
-        schedule = '\n'.join(["{}: {}".format(t.name, t.next_exec.isoformat())
+        now = datetime.now()
+        schedule = '\n'.join(["{}: -{}".format(t.name, str(t.next_exec - now))
             for t in self.server.tasklist.tasks])
         return schedule
 
 def _run_in_bg(self, command, *args, **kwargs):
     """Run a command and log any exceptions"""
     try:
+        key = (datetime.now(), command, args, kwargs)
+        self._background_cmds.append(key)
         command(*args, **kwargs)
     except:
         LOG.exception("Error while running in the background!")
+    finally:
+        self._background_cmds.remove(key)
 
 @private
 def background(self, command, *args, **kwargs):
@@ -114,3 +120,40 @@ def background(self, command, *args, **kwargs):
     """
     fxn_args = [self, command] + list(args)
     self.pool.apply_async(_run_in_bg, fxn_args, kwargs)
+
+def _fxn_signature(cmd, *args, **kwargs):
+    """Construct a string representation of a function call"""
+    arglist = ', '.join([str(arg) for arg in args])
+    if kwargs:
+        kwarglist = ', '.join(["{}={}".format(k, v) for k, v
+            in kwargs.iteritems()])
+        arglist += ', ' + kwarglist
+    return cmd + '(' + arglist + ')'
+
+@public
+def status(self):
+    """Display the currently running commands and tasks"""
+    now = datetime.now()
+    cmds = ['Commands', '--------']
+    for msg, date in self._active_commands:
+        delta = now - date
+        msg_call = _fxn_signature(msg['cmd'], *msg['args'], **msg['kwargs'])
+        cmds.append(str(delta) + "  " + msg_call)
+
+    cmds.append('')
+    cmds.append('Background')
+    cmds.append('----------')
+    for date, cmd, args, kwargs in self._background_cmds:
+        delta = now - date
+        msg_call = _fxn_signature(cmd.__name__, *args, **kwargs)
+        cmds.append(str(delta) + "  " + msg_call)
+
+    cmds.append('')
+    cmds.append('Tasks')
+    cmds.append('-----')
+    cmds.extend(self.tasks.running().split('\n'))
+    for task, date in self.tasklist.running_tasks:
+        delta = now - date
+        cmds.append(str(delta) + "  " + task.name)
+
+    return '\n'.join(cmds)

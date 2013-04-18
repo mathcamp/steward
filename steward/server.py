@@ -13,6 +13,7 @@ import traceback
 import types
 import inspect
 import zmq
+from datetime import datetime
 from threading import Thread
 from multiprocessing.pool import ThreadPool
 from multiprocessing.queues import Empty
@@ -61,6 +62,8 @@ class Server(Thread):
         self._start_methods = []
         self._apply_extensions(conf['extension_mods'])
         self._queue = None
+        self._active_commands = []
+        self._background_cmds = []
 
     def handle_message(self, msg):
         """
@@ -136,7 +139,10 @@ class Server(Thread):
             The command passed up by the client
 
         """
+        command_key = (msg, datetime.now())
+        self._active_commands.append(command_key)
         retval = self.handle_message(msg)
+        self._active_commands.remove(command_key)
         self._queue.put((uid, retval))
 
     def start(self):
