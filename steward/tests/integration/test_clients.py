@@ -44,10 +44,23 @@ class TestClients(util.IntegrationTest):
         """Client should receive subbed events"""
         queue = Queue()
         try:
-            self.client.sub('test_event', lambda *args:queue.put(args))
-            self.server.publish('test_event', 'trigger')
+            self.client.sub_callback = lambda *args:queue.put(args)
+            self.client.sub('test_event')
+            self.server.publish('test_event', '')
             result, _ = queue.get(timeout=1)
             self.assertEqual(result, 'test_event')
+        finally:
+            queue.close()
+
+    def test_client_sub_prefix(self):
+        """Client should receive events with a prefix that was subbed"""
+        queue = Queue()
+        try:
+            self.client.sub_callback = lambda *args:queue.put(args)
+            self.client.sub('s')
+            self.server.publish('something long', '')
+            result, _ = queue.get(timeout=1)
+            self.assertEqual(result, 'something long')
         finally:
             queue.close()
 
@@ -55,9 +68,9 @@ class TestClients(util.IntegrationTest):
         """After unsubscribing, client should not receive events"""
         queue = Queue()
         try:
-            mock = MagicMock()
-            self.client.sub('test_event1', mock)
-            self.client.sub('test_event2', lambda *args:queue.put(args))
+            self.client.sub_callback = lambda *args:queue.put(args)
+            self.client.sub('test_event1')
+            self.client.sub('test_event2')
 
             self.client.unsub('test_event1')
 
@@ -66,6 +79,5 @@ class TestClients(util.IntegrationTest):
 
             result, _ = queue.get(timeout=1)
             self.assertEqual(result, 'test_event2')
-            self.assertFalse(mock.called)
         finally:
             queue.close()

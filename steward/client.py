@@ -21,7 +21,6 @@ import logging
 import shlex
 from . import config
 from . import util
-from . import streams
 
 LOG = logging.getLogger(__name__)
 
@@ -42,6 +41,8 @@ class Client(object):
         Mapping of event names to callbacks
     open : bool
         True while streams are open, False after calling ``close()``
+    sub_callback : callable
+        A function with the signature of callback(name, data)
 
     """
     def __init__(self, conf=None):
@@ -60,7 +61,7 @@ class Client(object):
         self._stream = util.load_class(conf['stream'],
             'steward.streams')(socket)
 
-        self.subscriptions = {}
+        self.sub_callback = None
         self._callback = None
         self._substream = None
         self.open = True
@@ -140,39 +141,41 @@ class Client(object):
         
         """
         LOG.debug("Received event %s", name)
-        self.subscriptions[name](name, data)
+        if self.sub_callback is not None:
+            self.sub_callback(name, data) # pylint: disable=E1102
 
-    def sub(self, channel, callback):
+    def sub(self, prefix):
         """
-        Subscribe to a certain event
+        Subscribe to a certain event prefix
 
         Parameters
         ----------
-        channel : str
-            Name of event to receive messages about
-        callback : callable
-            A function with the signature of callback(name, data)
+        prefix : str
+            Prefix to receive messages about.
+
+        Notes
+        -----
+        You also need to set the `sub_callback`, otherwise the subscribed
+        events won't go anywhere :/
 
         """
         self._create_substream()
-        self._substream.sub(channel)
-        self.subscriptions[channel] = callback
+        self._substream.sub(prefix)
         # It takes a short amount of time for pyzmq to actually subscribe
         time.sleep(0.05)
 
-    def unsub(self, channel):
+    def unsub(self, prefix):
         """
-        Unsubscribe from a certain event
+        Unsubscribe from a certain event prefix
 
         Parameters
         ----------
-        channel : str
-            Name of event to stop receiving messages about
+        prefix : str
+            Prefix to stop receiving messages about
 
         """
         self._create_substream()
-        del self.subscriptions[channel]
-        self._substream.unsub(channel)
+        self._substream.unsub(prefix)
 
     def close(self):
         """Close active streams"""
@@ -220,6 +223,8 @@ class StewardREPL(cmd.Cmd):
         The interactive prompt
     running : bool
         True while session is active, False after quitting
+    subscriptions : set
+        Set of all the events subscribed to
 
     """
     client = None
@@ -227,6 +232,7 @@ class StewardREPL(cmd.Cmd):
     aliases = {}
     prompt = '8==D '
     running = False
+    subscriptions = set()
     def start(self, conf):
         """
         Start running the interactive session (blocking)
@@ -238,6 +244,7 @@ class StewardREPL(cmd.Cmd):
 
         """
         self.client = Client(conf)
+        self.client.sub_callback = self._sub_callback
         self.aliases = {}
         for alias, longvalue in conf['aliases'].iteritems():
             self.do_alias(alias + ' ' + longvalue)
@@ -258,34 +265,40 @@ class StewardREPL(cmd.Cmd):
         print "List commands or print details about a command"
 
     @repl_command
-    def do_sub(self, channel):
+    def do_sub(self, channel=''):
         """
         Subscribe to a channel
         
         Parameters
         ----------
-        channel : str
-            Name of event channel to subscribe to
+        channel : str, optional
+            Name of event channel to subscribe to (default all channels)
 
         """
-        self.client.sub(channel, self._sub_callback)
+        self.subscriptions.add(channel)
+        self.client.sub(channel)
 
     @repl_command
     def do_subs(self):
         """List all subscribed channels"""
-        print ', '.join(self.client.subscriptions.keys())
+        copyset = set(self.subscriptions)
+        if '' in copyset:
+            copyset.remove('')
+            copyset.add('<all>')
+        print ', '.join(copyset)
 
     @repl_command
-    def do_unsub(self, channel):
+    def do_unsub(self, channel=''):
         """
         Unsubscribe from a channel
         
         Parameters
         ----------
-        channel : str
-            Name of event channel to unsubscribe from
+        channel : str, optional
+            Name of event channel to unsubscribe from (default the '' channel)
 
         """
+        self.subscriptions.remove(channel)
         self.client.unsub(channel)
 
     @repl_command
