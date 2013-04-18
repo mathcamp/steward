@@ -72,8 +72,9 @@ class ListenClientCLI(config.CMDLineOptionsParserMixin):
         from . import client
         conf = self.get_config(False)
         c = client.Client(conf)
+        c.sub_callback = self._on_msg
         for channel in self.channels:
-            c.sub(channel, self._on_msg)
+            c.sub(channel)
         while True:
             try:
                 time.sleep(10000)
