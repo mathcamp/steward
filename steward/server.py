@@ -251,8 +251,13 @@ class Server(Thread):
                 elif hasattr(member, '__public__'):
                     name = name.lower()
                     if hasattr(self, name):
-                        raise Exception("Server already has extension {}"
-                        .format(name))
+                        attr = getattr(self, name)
+                        if hasattr(attr, '__doc__'):
+                            desc = attr.__doc__
+                        else:
+                            desc = str(attr)
+                        raise Exception("Server already has extension {}: {}"
+                        .format(name, desc))
 
                     if inspect.isclass(member):
                         instance = member(self)
