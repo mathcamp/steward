@@ -8,6 +8,7 @@ Basic extensions for the server
 
 """
 import inspect
+import subprocess
 import time
 import logging
 from datetime import datetime
@@ -33,6 +34,12 @@ def pub(self, channel, **kwargs):
     """
     self.publish(channel, kwargs)
     return True
+
+@public
+def sh(self, *args, **kwargs):
+    """Run a shell command on the server"""
+    arglist = list(args) + [k + '=' + v for k, v in kwargs.iteritems()]
+    return subprocess.check_output(arglist)
 
 @invisible
 def commands(self):
