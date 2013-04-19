@@ -16,6 +16,7 @@ import cmd
 import functools
 import inspect
 import types
+import subprocess
 import pprint
 import logging
 import shlex
@@ -264,6 +265,10 @@ class StewardREPL(cmd.Cmd):
         """Print the help text for help"""
         print "List commands or print details about a command"
 
+    def do_shell(self, arglist):
+        """ Run a shell command """
+        print subprocess.check_output(shlex.split(arglist))
+
     @repl_command
     def do_sub(self, channel=''):
         """
@@ -396,7 +401,7 @@ class StewardREPL(cmd.Cmd):
             if args[0] == 'grow':
                 self.prompt = '8==' + self.prompt[1:]
                 return
-                
+
         self._run_server_command(*args, **kwargs)
 
     @repl_command
