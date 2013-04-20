@@ -52,17 +52,16 @@ def _visible_members(object):
     for name, member in inspect.getmembers(object):
         if name.startswith('_'):
             continue
-        if not getattr(member, '__public__', False):
+        if not hasattr(member, '__public__'):
             continue
         if getattr(member, '__invisible__', False):
             continue
-        if not callable(member):
+        if not inspect.ismethod(member):
             for subname, doc in _visible_members(member):
                 yield name + '.' + subname, doc
+        if not getattr(member, '__public__', False):
             continue
-        doc = getattr(member, '__doc__', '')
-        if doc is None:
-            doc = ''
+        doc = getattr(member, '__doc__', None) or ''
         yield name, doc
 
 @invisible
