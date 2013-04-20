@@ -231,6 +231,19 @@ def synchronized(obj, lock_arg=None):
                 # This is synchronized!
                 return self._foo
 
+    Instead of passing in a lock, which will use the same lock for every
+    instance of the class, you may set the __lock__ attribute manually::
+
+        @synchronized
+        class FooBar(object):
+            def __init__(self):
+                self.__lock__ = threading.Lock()
+                self._foo = 'bar'
+
+            def myfoo(self):
+                # This is synchronized!
+                return self._foo
+
     Lastly, you may decorate a class without specifying a lock. This will set
     the ``__lock__`` on the object to be an instance of
     :py:meth:`threading.RLock`::
@@ -239,7 +252,7 @@ def synchronized(obj, lock_arg=None):
         class FooBar(object):
             _foo = 'bar'
 
-            _def myfoo(self):
+            def myfoo(self):
                 # This is synchronized!
                 return self._foo
 

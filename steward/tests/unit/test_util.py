@@ -110,6 +110,19 @@ class TestUtil(unittest.TestCase):
         f.foobar()
         f.__lock__.__enter__.assert_any_call()
 
+    def test_synchronized_class_instance_lock(self):
+        """@synchronized classes with a manual __lock__ should use that lock"""
+        @util.synchronized
+        class Foo(object):
+            """Dummy object"""
+            def __init__(self):
+                self.__lock__ = MagicMock()
+            def foobar(self):
+                """noop"""
+        f = Foo()
+        f.foobar()
+        f.__lock__.__enter__.assert_any_call()
+
     def test_synchronized_class_with_lock(self):
         """@synchronized classes should accept a lock as an argument"""
         lock = MagicMock()
