@@ -263,8 +263,8 @@ def synchronized(obj, lock_arg=None):
         # We can't functools.wraps this because __init__ is not a function
         def _wrapper(self, *args, **kwargs):
             """Init wrapper"""
-            init(self, *args, **kwargs)
             self.__lock__ = threading.RLock()
+            init(self, *args, **kwargs)
         return _wrapper
 
     if inspect.isfunction(obj):
