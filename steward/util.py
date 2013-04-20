@@ -259,15 +259,14 @@ def synchronized(obj, lock_arg=None):
     """
     def _get_wrapper(lock, fxn):
         """Create a method wrapper"""
-        scoped_container = [lock]
         @functools.wraps(fxn)
         def _wrapper(*args, **kwargs):
             """The synchronized wrapper around the method"""
-            lock = scoped_container[0]
-            if lock is None:
+            local_lock = lock
+            if local_lock is None:
                 self = args[0]
-                lock = self.__lock__
-            with lock:
+                local_lock = self.__lock__
+            with local_lock:
                 return fxn(*args, **kwargs)
         return _wrapper
 
