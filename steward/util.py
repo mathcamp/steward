@@ -8,6 +8,7 @@ Utility methods
 
 """
 import functools
+import inspect
 import threading
 import logging
 
@@ -178,6 +179,111 @@ def serialize(*args, **kwargs):
         return functools.partial(create_wrapper, kwargs.pop('blocking'))
     else:
         raise TypeError("@serialize called with wrong args!")
+
+def synchronized(obj, lock_arg=None):
+    """
+    A decorator for synchronizing methods
+
+    Notes
+    -----
+    You may use this decorator on functions, methods, or classes. On functions,
+    you must specify a lock object::
+
+        lock = threading.Lock()
+
+        @synchronized(lock)
+        def do_synchronous(arg):
+            print arg
+
+    If you decorate a method, you may use it in the same way::
+
+        lock = threading.Lock()
+
+        class FooBar(object):
+            _foo = 'bar'
+
+            @synchronized(lock)
+            def myfoo(self):
+                return self._foo
+
+    Alternatively, you may leave the lock unspecified and the decorator will
+    use the ``__lock__`` property of the object::
+
+        class FooBar(object):
+            def __init__(self):
+                self.__lock__ = threading.Lock()
+                self._foo = 'bar'
+
+            @synchronized
+            def myfoo(self):
+                return self._foo
+
+    You may also decorate an entire class, which will cause every method to be
+    synchronized::
+
+        lock = threading.Lock()
+
+        @synchronized(lock)
+        class FooBar(object):
+            _foo = 'bar'
+
+            def myfoo(self):
+                # This is synchronized!
+                return self._foo
+
+    Lastly, you may decorate a class without specifying a lock. This will set
+    the ``__lock__`` on the object to be an instance of
+    :py:meth:`threading.RLock`::
+
+        @synchronized
+        class FooBar(object):
+            _foo = 'bar'
+
+            _def myfoo(self):
+                # This is synchronized!
+                return self._foo
+
+    """
+    def _get_wrapper(lock, fxn):
+        """Create a method wrapper"""
+        scoped_container = [lock]
+        @functools.wraps(fxn)
+        def _wrapper(*args, **kwargs):
+            """The synchronized wrapper around the method"""
+            lock = scoped_container[0]
+            if lock is None:
+                self = args[0]
+                lock = self.__lock__
+            with lock:
+                return fxn(*args, **kwargs)
+        return _wrapper
+
+    def _init_wrapper(init):
+        """Wrap the init method"""
+        # We can't functools.wraps this because __init__ is not a function
+        def _wrapper(self, *args, **kwargs):
+            """Init wrapper"""
+            init(self, *args, **kwargs)
+            self.__lock__ = threading.RLock()
+        return _wrapper
+
+    if inspect.isfunction(obj):
+        # @synchronized
+        # def myfunc():
+        return _get_wrapper(lock_arg, obj)
+    elif inspect.isclass(obj):
+        # @synchronized
+        # class MyClass:
+        if lock_arg is None:
+            obj.__init__ = _init_wrapper(obj.__init__)
+        for name, member in inspect.getmembers(obj):
+            if inspect.ismethod(member) and name != '__init__':
+                setattr(obj, name, _get_wrapper(lock_arg, member))
+        return obj
+    else:
+        # @synchronized(lock)
+        # (function or class)
+        return functools.partial(synchronized, lock_arg=obj)
 
 def load_class(path, default=None):
     """

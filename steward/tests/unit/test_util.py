@@ -9,7 +9,8 @@ Test methods in :py:mod:`steward.util`
 """
 import unittest
 import time
-from threading import Thread
+from mock import MagicMock
+from threading import Thread, RLock
 from steward import util
 
 class ExpectedException(Exception):
@@ -58,3 +59,65 @@ class TestUtil(unittest.TestCase):
         time.sleep(0.01)
         retval = sleeper()
         self.assertTrue(retval is False)
+
+    def test_synchronized_method(self):
+        """@synchronized methods should use default lock on class"""
+        class Foo(object):
+            """Dummy object"""
+            __lock__ = None
+            @util.synchronized
+            def foobar(self):
+                """noop"""
+
+        Foo.__lock__ = MagicMock()
+        f = Foo()
+        f.foobar()
+        Foo.__lock__.__enter__.assert_any_call()
+
+    def test_synchronized_method_with_lock(self):
+        """@synchronized should accept a lock as an argument"""
+        lock = MagicMock()
+        class Foo(object):
+            """Dummy object"""
+            @util.synchronized(lock)
+            def foobar(self):
+                """noop"""
+
+        f = Foo()
+        f.foobar()
+        lock.__enter__.assert_any_call()
+
+    def test_default_lock(self):
+        """@synchronized classes should get a default RLock"""
+        @util.synchronized
+        class Foo(object):
+            """Dummy object"""
+            def foobar(self):
+                """noop"""
+        f = Foo()
+        self.assertTrue(hasattr(f, '__lock__'))
+        self.assertEqual(type(getattr(f, '__lock__')), type(RLock()))
+
+    def test_synchronized_class(self):
+        """@synchronized classes should use default lock on class"""
+        @util.synchronized
+        class Foo(object):
+            """Dummy object"""
+            def foobar(self):
+                """noop"""
+        f = Foo()
+        f.__lock__ = MagicMock()
+        f.foobar()
+        f.__lock__.__enter__.assert_any_call()
+
+    def test_synchronized_class_with_lock(self):
+        """@synchronized classes should accept a lock as an argument"""
+        lock = MagicMock()
+        @util.synchronized(lock)
+        class Foo(object):
+            """Dummy object"""
+            def foobar(self):
+                """noop"""
+        f = Foo()
+        f.foobar()
+        lock.__enter__.assert_any_call()

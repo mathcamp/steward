@@ -165,11 +165,12 @@ class Server(Thread):
             self.tasklist.pool = self.pool
             self.tasklist.start()
             self.initialize_streams()
-            LOG.info("Starting server")
+            LOG.info("Starting server...")
             for meth in self._start_methods:
                 meth(self)
             self.running = True
             self.starting = False
+            LOG.info("Started")
             while self.running:
                 try:
                     uid = 's'
