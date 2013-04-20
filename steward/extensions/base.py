@@ -78,7 +78,7 @@ def sleep(self, t=1):
     time.sleep(float(t))
     return True
 
-@public
+@private
 class Tasks(object):
     """Wrapper for task-specific calls"""
     def __init__(self, server):
