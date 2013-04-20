@@ -163,3 +163,36 @@ def status(self):
         cmds.append(str(delta) + "  " + task.name)
 
     return '\n'.join(cmds)
+
+@private
+def get_bool(self, string):
+    """
+    Convert a string argument into a boolean
+
+    Parameters
+    ----------
+    string : basestring or bool
+        The argument passed in from a client or a bool (if a bool this method
+        will just return that value)
+
+    Returns
+    -------
+    the_bool : bool
+
+    Raises
+    ------
+    TypeError
+        If the string is unrecognized or the argument is not already a string or bool
+
+    """
+    if isinstance(string, bool):
+        return string
+    if not isinstance(string, basestring):
+        raise TypeError("get_bool must be called with a string!")
+    string = string.strip().lower()
+
+    if string == "y" or string == "yes" or string == "t" or string == "true":
+        return True
+    elif string == "n" or string == "no" or string == "f" or string == "false":
+        return False
+    raise TypeError("Unrecognized boolean type %s" % string)
