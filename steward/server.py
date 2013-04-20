@@ -85,18 +85,11 @@ class Server(Thread):
             
             if getattr(method, '__public__', False):
                 value = method(*msg.get('args', []), **msg.get('kwargs', {}))
-                if isinstance(value, Exception):
-                    # If the sys.exc_info is stored on the exception, raise
-                    # that to preserve the traceback
-                    if hasattr(value, 'exc'):
-                        raise value.exc[1], None, value.exc[2]
-                    else:
-                        raise value
                 retval = {'val':value}
             else:
                 raise AttributeError('{} is not public!'.format(command))
         except Exception as e:
-            LOG.exception(e)
+            LOG.exception("Error running %s" % command)
             retval = {'exc':traceback.format_exc()}
         finally:
             return retval #pylint: disable=W0150
