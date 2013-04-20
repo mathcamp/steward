@@ -254,6 +254,7 @@ class Server(Thread):
 
                     if inspect.isclass(member):
                         instance = member(self)
+                        setattr(instance, '__server__', self)
                         setattr(self, name, instance)
                     else:
                         bound_method = types.MethodType(member, self, Server)
