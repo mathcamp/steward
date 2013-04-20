@@ -244,6 +244,7 @@ class StewardREPL(cmd.Cmd):
             Configuration dictionary
 
         """
+        self.identchars += '.'
         self.client = Client(conf)
         self.client.sub_callback = self._sub_callback
         self.aliases = {}
