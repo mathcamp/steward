@@ -37,11 +37,28 @@ class Foo(object):
         pass
     @public
     def ping(self):
-        """Public method inside the extension Foo namespace"""
+        """ Public method inside the extension Foo namespace """
         return 'pong'
     def private_ping(self):
-        """Private method inside the extension Foo namespace"""
+        """ Private method inside the extension Foo namespace """
         return 'pong'
+    def __call__(self):
+        """ Make Foo a callable """
+        return 'bar'
+
+@private
+class PrivateFoo(object):
+    """ A private namespace """
+    def __init__(self, server):
+        pass
+    @public
+    def ping(self):
+        """ Public method inside a private namespace """
+        return 'pong'
+
+    def __call__(self):
+        """ Make PrivateFoo a callable """
+        return 'bar'
 
 class TestDecorators(tests.BaseTest):
     """Test the server extension loading"""
@@ -81,7 +98,17 @@ class TestDecorators(tests.BaseTest):
         retval = self.call_server('foo.private_ping')
         self.assert_result_exc(retval)
 
-    def test_namespace_not_callable(self):
-        """The extension namespace itself should not be callable"""
+    def test_namespace_callable(self):
+        """The extension namespace itself should be callable"""
         retval = self.call_server('foo')
+        self.assert_result_equal(retval, 'bar')
+
+    def test_private_namespace_not_callable(self):
+        """ Private namespaces should not be callable """
+        retval = self.call_server('privatefoo')
         self.assert_result_exc(retval)
+
+    def test_private_namespace_method_callable(self):
+        """ Public methods in private namespaces should be callable"""
+        retval = self.call_server('privatefoo.ping')
+        self.assert_result_equal(retval, 'pong')
