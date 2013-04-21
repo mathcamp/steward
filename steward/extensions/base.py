@@ -61,7 +61,10 @@ def _visible_members(object):
                 yield name + '.' + subname, doc
         if not getattr(member, '__public__', False):
             continue
-        doc = getattr(member, '__doc__', None) or ''
+        if hasattr(member, '__call__'):
+            doc = getattr(member.__call__, '__doc__', None) or ''
+        else:
+            doc = getattr(member, '__doc__', None) or ''
         yield name, doc
 
 @invisible
