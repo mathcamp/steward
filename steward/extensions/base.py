@@ -61,7 +61,8 @@ def _visible_members(object):
                 yield name + '.' + subname, doc
         if not getattr(member, '__public__', False):
             continue
-        if hasattr(member, '__call__'):
+        if not inspect.isfunction(member) and not inspect.ismethod(member) \
+        and hasattr(member, '__call__'):
             doc = getattr(member.__call__, '__doc__', None) or ''
         else:
             doc = getattr(member, '__doc__', None) or ''
