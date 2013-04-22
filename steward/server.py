@@ -110,14 +110,17 @@ class Server(Thread):
         for pattern, handler in self.event_handlers:
             match = pattern.match(name)
             if match:
-                if pattern.groups:
-                    retval = handler(self, data, *match.groups())
-                else:
-                    retval = handler(self, data)
-                if retval is True:
-                    LOG.info("Sending event %s has been blocked by "
-                        "event handler %s", name, handler.__name__)
-                    return
+                try:
+                    if pattern.groups:
+                        retval = handler(self, data, *match.groups())
+                    else:
+                        retval = handler(self, data)
+                    if retval is True:
+                        LOG.info("Sending event %s has been blocked by "
+                            "event handler %s", name, handler.__name__)
+                        return
+                except:
+                    LOG.exception("Error running event handler!")
         self._pubstream.send(name, data)
 
     def _handle_async(self, uid, msg):
