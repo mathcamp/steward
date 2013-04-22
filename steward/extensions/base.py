@@ -19,25 +19,32 @@ LOG = logging.getLogger(__name__)
 @public
 def pub(self, channel, **kwargs):
     """
+    pub(channel, **kwargs)
+
     Publish an event
 
     Parameters
     ----------
     channel : str
         The channel to publish on
-    
+
     Notes
     -----
     Converts any kwargs into a dict and publishes the dict as the event data
     object
-    
+
     """
     self.publish(channel, kwargs)
     return True
 
 @public
 def sh(self, *args, **kwargs):
-    """Run a shell command on the server"""
+    """
+    sh(*args, **kwargs)
+
+    Run a shell command on the server
+
+    """
     arglist = list(args) + [k + '=' + v for k, v in kwargs.iteritems()]
     return subprocess.check_output(arglist)
 
@@ -90,14 +97,24 @@ class Tasks(object):
 
     @public
     def running(self):
-        """Get the list of tasks currently being run"""
+        """
+        tasks.running()
+
+        Get the list of tasks currently being run
+
+        """
         running_tasks = '\n'.join(["{}: {}".format(t.name, d.isoformat())
             for t, d in self.server.tasklist.running_tasks])
         return running_tasks
 
     @public
     def schedule(self):
-        """Get the list of scheduled tasks"""
+        """
+        tasks.schedule()
+
+        Get the list of scheduled tasks
+
+        """
         now = datetime.now()
         schedule = '\n'.join(["{}: -{}".format(t.name, str(t.next_exec - now))
             for t in self.server.tasklist.tasks])
@@ -142,7 +159,12 @@ def _fxn_signature(cmd, *args, **kwargs):
 
 @public
 def status(self):
-    """Display the currently running commands and tasks"""
+    """
+    status()
+
+    Display the currently running commands and tasks
+
+    """
     now = datetime.now()
     cmds = ['Commands', '--------']
     for msg, date in self._active_commands:
