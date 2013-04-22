@@ -161,7 +161,6 @@ def status(self):
     cmds.append('')
     cmds.append('Tasks')
     cmds.append('-----')
-    cmds.extend(self.tasks.running().split('\n'))
     for task, date in self.tasklist.running_tasks:
         delta = now - date
         cmds.append(str(delta) + "  " + task.name)
