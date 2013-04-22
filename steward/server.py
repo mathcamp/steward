@@ -165,12 +165,12 @@ class Server(Thread):
             if self.pool is None:
                 self.pool = ThreadPool(processes=self.conf['worker_threads'])
             self._queue = Queue()
-            self.tasklist.pool = self.pool
-            self.tasklist.start()
             self.initialize_streams()
             LOG.info("Starting server...")
             for meth in self._start_methods:
                 meth(self)
+            self.tasklist.pool = self.pool
+            self.tasklist.start()
             self.running = True
             self.starting = False
             LOG.info("Started")
