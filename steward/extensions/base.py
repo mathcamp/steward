@@ -216,8 +216,8 @@ def get_bool(self, string):
         raise TypeError("get_bool must be called with a string!")
     string = string.strip().lower()
 
-    if string == "y" or string == "yes" or string == "t" or string == "true":
+    if string in ('y', 'yes', 't', 'true', '1'):
         return True
-    elif string == "n" or string == "no" or string == "f" or string == "false":
+    elif string in ('n', 'no', 'f', 'false', '0'):
         return False
     raise TypeError("Unrecognized boolean type %s" % string)
