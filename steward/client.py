@@ -350,6 +350,16 @@ class StewardREPL(cmd.Cmd):
     def get_names(self):
         return [name for name, _ in inspect.getmembers(self, callable)]
 
+    @repl_command
+    def do_browse(self):
+        """ Print out the help for all commands """
+        for name in self.get_names():
+            if not name.startswith('do_'):
+                continue
+            print name[3:]
+            self.do_help(name[3:])
+            print '-----------------'
+
     def set_cmd(self, name, doc):
         """Create local bound methods for a remote command
 
