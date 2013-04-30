@@ -186,7 +186,12 @@ class Server(Thread):
 
                 try:
                     uid, response = self._queue.get(block=False)
-                    self._stream.send(uid, response)
+                    try:
+                        self._stream.send(uid, response)
+                    except TypeError:
+                        LOG.exception("Error sending response")
+                        retval = {'exc':traceback.format_exc()}
+                        self._stream.send(uid, retval)
                 except Empty:
                     pass
 
