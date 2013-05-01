@@ -20,6 +20,7 @@ import subprocess
 import pprint
 import logging
 import shlex
+import json
 from . import config
 from . import util
 
@@ -38,6 +39,8 @@ class Client(object):
     ----------
     conf : dict
         Configuration dictionary
+    meta : dict
+        The client meta dict that is passed up to the server with each call
     subscriptions : dict
         Mapping of event names to callbacks
     open : bool
@@ -50,6 +53,7 @@ class Client(object):
         if conf is None:
             conf = config.load_config()
         self.conf = conf
+        self.meta = {}
         c = zmq.Context()
         socket = c.socket(zmq.REQ)
 
@@ -66,6 +70,24 @@ class Client(object):
         self._callback = None
         self._substream = None
         self.open = True
+
+    @property
+    def format(self):
+        """ Get the data format that the server will be returning """
+        return self.meta.get('format', 'raw')
+
+    @format.setter
+    def format(self, format):
+        """
+        Set the return format for the server to use
+
+        Parameters
+        ----------
+        format : str
+            Usually one of 'text', 'html', or 'raw' (the default)
+
+        """
+        self.meta['format'] = format
 
     def _create_substream(self):
         """
@@ -124,7 +146,8 @@ class Client(object):
             The dictionary response from the server
 
         """
-        self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs})
+        self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs,
+            'meta':self.meta})
         return self._stream.recv()
 
     def _on_pub(self, name, data):
@@ -246,6 +269,8 @@ class StewardREPL(cmd.Cmd):
         """
         self.identchars += '.'
         self.client = Client(conf)
+        self.client.format = 'text'
+        self.client.meta.update(conf['meta'])
         self.client.sub_callback = self._sub_callback
         self.aliases = {}
         for alias, longvalue in conf['aliases'].iteritems():
@@ -269,6 +294,27 @@ class StewardREPL(cmd.Cmd):
     def do_shell(self, arglist):
         """ Run a shell command """
         print subprocess.check_output(shlex.split(arglist))
+
+    def do_meta(self, arglist):
+        """
+        meta() or meta(key, val)
+
+        Set a client meta key, or list all values
+
+        Parameters
+        ----------
+        key : str
+            The key for the meta dict
+        val : str
+            The value for the meta dict (in json format)
+
+        """
+        if not arglist:
+            pprint.pprint(self.client.meta)
+        else:
+            args = arglist.split()
+            key, val = args
+            self.client.meta[key] = json.loads(val)
 
     @repl_command
     def do_sub(self, channel=''):

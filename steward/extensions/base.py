@@ -11,8 +11,8 @@ import inspect
 import subprocess
 import time
 import logging
-from datetime import datetime
-from steward import public, invisible, private
+from datetime import datetime, timedelta
+from steward import public, invisible, private, formatter
 
 LOG = logging.getLogger(__name__)
 
@@ -89,6 +89,24 @@ def sleep(self, t=1):
     time.sleep(float(t))
     return True
 
+@formatter('text', 'tasks.running')
+def format_running(output):
+    """ Format the output of tasks.running """
+    lines = []
+    for name, ts in output:
+        dt = datetime.fromtimestamp(ts)
+        lines.append("{}: {}".format(name, dt.isoformat()))
+    return '\n'.join(lines)
+
+@formatter('text', 'tasks.schedule')
+def format_schedule(output):
+    """ Format the output of tasks.schedule """
+    lines = []
+    for name, sec in output:
+        td = timedelta(sec)
+        lines.append("{}: -{}".format(name, td))
+    return '\n'.join(lines)
+
 @private
 class Tasks(object):
     """Wrapper for task-specific calls"""
@@ -103,9 +121,10 @@ class Tasks(object):
         Get the list of tasks currently being run
 
         """
-        running_tasks = '\n'.join(["{}: {}".format(t.name, d.isoformat())
-            for t, d in self.server.tasklist.running_tasks])
-        return running_tasks
+        tasks = []
+        for task, dt in self.server.tasklist.running_tasks:
+            tasks.append((task.name, time.mktime(dt.timetuple())))
+        return tasks
 
     @public
     def schedule(self):
@@ -116,9 +135,10 @@ class Tasks(object):
 
         """
         now = datetime.now()
-        schedule = '\n'.join(["{}: -{}".format(t.name, str(t.next_exec - now))
-            for t in self.server.tasklist.tasks])
-        return schedule
+        tasks = []
+        for task in self.server.tasklist.tasks:
+            tasks.append((task.name, (task.next_exec - now).total_seconds()))
+        return tasks
 
 def _run_in_bg(self, command, *args, **kwargs):
     """Run a command and log any exceptions"""
@@ -157,6 +177,24 @@ def _fxn_signature(cmd, *args, **kwargs):
         arglist += ', ' + kwarglist
     return cmd + '(' + arglist + ')'
 
+@formatter('text', 'status')
+def format_status(output):
+    """ Format the output of status """
+    lines = ['Commands', '--------']
+    for fxn, seconds in output['commands']:
+        lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
+    lines.append('')
+    lines.append('Background')
+    lines.append('----------')
+    for fxn, seconds in output['background']:
+        lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
+    lines.append('')
+    lines.append('Tasks')
+    lines.append('-----')
+    for fxn, seconds in output['tasks']:
+        lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
+    return '\n'.join(lines)
+
 @public
 def status(self):
     """
@@ -166,28 +204,25 @@ def status(self):
 
     """
     now = datetime.now()
-    cmds = ['Commands', '--------']
+    retval = {}
+    retval['commands'] = []
     for msg, date in self._active_commands:
         delta = now - date
         msg_call = _fxn_signature(msg['cmd'], *msg['args'], **msg['kwargs'])
-        cmds.append(str(delta) + "  " + msg_call)
+        retval['commands'].append((msg_call, delta.total_seconds()))
 
-    cmds.append('')
-    cmds.append('Background')
-    cmds.append('----------')
+    retval['background'] = []
     for date, cmd, args, kwargs in self._background_cmds:
         delta = now - date
         msg_call = _fxn_signature(cmd.__name__, *args, **kwargs)
-        cmds.append(str(delta) + "  " + msg_call)
+        retval['background'].append((msg_call, delta.total_seconds()))
 
-    cmds.append('')
-    cmds.append('Tasks')
-    cmds.append('-----')
+    retval['tasks'] = []
     for task, date in self.tasklist.running_tasks:
         delta = now - date
-        cmds.append(str(delta) + "  " + task.name)
+        retval['tasks'].append((task.name, delta.total_seconds()))
 
-    return '\n'.join(cmds)
+    return retval
 
 @private
 def get_bool(self, string):

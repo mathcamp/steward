@@ -52,7 +52,7 @@ def private(fxn):
 def invisible(fxn):
     """
     Decorator for methods callable from, but not visible to, clients.
-    
+
     Notes
     -----
     Decorate a function with this to prevent it from cluttering up the function
@@ -71,7 +71,7 @@ def event_handler(name, priority=100):
     """
     Decorator for event handlers.
 
-    Methods with this decorator will be called by the server before publishing
+    Functions with this decorator will be called by the server before publishing
     an event to clients.
 
     Parameters
@@ -106,7 +106,7 @@ def event_handler(name, priority=100):
     :py:meth:`steward.server.Server.publish` method
 
     This handler converts all orders of eggs to an order of spam::
-        
+
         @event_handler('order', priority=10)
         def you_want_spam(self, order):
             if order == 'eggs':
@@ -132,6 +132,55 @@ def event_handler(name, priority=100):
         fxn.__priority__ = priority
         return fxn
     return decorator
+
+def formatter(format, cmd):
+    """
+    Decorator for output formatters
+
+    Functions with this decorator will be used to format the output returned by
+    an extension before sending to the client.
+
+    Parameters
+    ----------
+    format : str
+        A format, (ex. 'text' or 'html')
+    cmd : str
+        The command to format (ex. 'pub')
+
+    Notes
+    -----
+    The client sets their desired format via the 'meta' dict. The server will
+    check the 'format' key in the 'meta' dict, and use 'raw' by default if no
+    value is found.
+
+    The function decorated with @formatter should take either one or two
+    arguments. The first is the output from the command that was run. The
+    second, if included in the function definition, will contain the client's
+    meta dict. Two quick examples::
+
+        @public
+        def orders(self):
+            return [order.name for order in self.order_list]
+
+        @formatter('text', 'orders')
+        def format_orders(output):
+            return ', '.join(output)
+
+        @formatter('html', 'orders')
+        def format_horders(output, client)
+            if client.get('single_line'):
+                return '<span>' + ', '.join(output) + '</span>'
+            else:
+                return ''.join(['<div>' + name + '</div>' for name in output])
+
+    """
+    def decorator(fxn):
+        """The actual decorator for formatters"""
+        fxn.__format_type__ = format
+        fxn.__format_cmd__ = cmd
+        return fxn
+    return decorator
+
 
 def serialize(*args, **kwargs):
     """

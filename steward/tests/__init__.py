@@ -16,6 +16,7 @@ class BaseTest(unittest.TestCase):
     def setUp(self):
         super(BaseTest, self).setUp()
         self.server = server.Server(self.config)
+        self.meta = {}
 
     def call_server(self, cmd, *args, **kwargs):
         """
@@ -25,8 +26,8 @@ class BaseTest(unittest.TestCase):
         :py:meth:`steward.client.Client.cmd`
 
         """
-        msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs}
-        return self.server.handle_message(msg)
+        msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs, 'meta':self.meta}
+        return self.server.handle_message('test', msg)
 
     def assert_result_equal(self, first, second, msg=None):
         """

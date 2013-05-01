@@ -52,3 +52,9 @@ log_dir: /var/log/steward
 
 # Name of remote server to connect to via ssh
 #server: None
+
+# The 'meta' dictionary that the client should use by default in the REPL
+# For example
+# meta:
+#   format: html
+#meta: {}

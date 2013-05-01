@@ -41,6 +41,7 @@ SERVER_DEFAULTS = {
 CLIENT_DEFAULTS = {
     'server': None,
     'aliases': {},
+    'meta': {},
 }
 
 def get_log_config(conf):

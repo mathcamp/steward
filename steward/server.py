@@ -13,8 +13,9 @@ import traceback
 import types
 import inspect
 import zmq
+import threading
 from datetime import datetime
-from threading import Thread
+from collections import defaultdict
 from multiprocessing.pool import ThreadPool
 from multiprocessing.queues import Empty
 from multiprocessing import Queue
@@ -23,7 +24,7 @@ from . import tasks
 
 LOG = logging.getLogger(__name__)
 
-class Server(Thread):
+class Server(threading.Thread):
     """
     The server that handles tasks, events, and running commands from clients
 
@@ -60,12 +61,52 @@ class Server(Thread):
         self.tasklist = tasks.TaskList()
         self.pool = None
         self._start_methods = []
+        self._formatters = defaultdict(dict)
+        self._client_metadata = {}
         self._apply_extensions(conf['extension_mods'])
         self._queue = None
         self._active_commands = []
         self._background_cmds = []
 
-    def handle_message(self, msg):
+    @property
+    def uid(self):
+        """
+        The uid for the client making the active request
+
+        Returns
+        -------
+        uid : str
+
+        Notes
+        -----
+        This should only be called from extensions. If this is called in an
+        event handler or a task, it will return None.
+
+        When requests come in, we tag their handler thread with the uid. This
+        method pulls that uid off of the active thread.
+
+        """
+        cur = threading.current_thread()
+        return getattr(cur, 'uid', None)
+
+    @property
+    def client(self):
+        """
+        A configuration dictionary for the current client
+
+        Returns
+        -------
+        config : dict
+
+        Notes
+        -----
+        This is subject to the same constraints as
+        :py:meth:`steward.server.Server.uid`
+
+        """
+        return self._client_metadata.get(self.uid, {})
+
+    def handle_message(self, uid, msg):
         """
         Handle a client message and return a response
 
@@ -77,7 +118,11 @@ class Server(Thread):
         """
         command = msg.get('cmd')
         # If the command exists on the Server object, run that
+        cur = threading.current_thread()
         try:
+            setattr(cur, 'uid', uid)
+            self._client_metadata[uid] = msg.get('meta', {})
+
             attr_list = command.split('.')
             method = self
             for attr in attr_list:
@@ -85,6 +130,20 @@ class Server(Thread):
             
             if getattr(method, '__public__', False):
                 value = method(*msg.get('args', []), **msg.get('kwargs', {}))
+
+                format = self.client.get('format', 'raw')
+                formatter = self._formatters.get(format, {}).get(command)
+                try:
+                    if formatter is not None:
+                        if len(inspect.getargspec(formatter).args) == 2:
+                            value = formatter(value, self.client)
+                        else:
+                            value = formatter(value)
+                except:
+                    LOG.exception("Error running formatter for %s", msg['cmd'])
+
+
+
                 retval = {'val':value}
             else:
                 raise AttributeError('{} is not public!'.format(command))
@@ -92,6 +151,8 @@ class Server(Thread):
             LOG.exception("Error running %s" % command)
             retval = {'exc':traceback.format_exc()}
         finally:
+            delattr(cur, 'uid')
+            del self._client_metadata[uid]
             return retval #pylint: disable=W0150
 
     def publish(self, name, data=None):
@@ -137,7 +198,7 @@ class Server(Thread):
         """
         command_key = (msg, datetime.now())
         self._active_commands.append(command_key)
-        retval = self.handle_message(msg)
+        retval = self.handle_message(uid, msg)
         self._active_commands.remove(command_key)
         self._queue.put((uid, retval))
 
@@ -250,6 +311,9 @@ class Server(Thread):
                 elif hasattr(member, '__sub_event__'):
                     self.event_handlers.append(
                         (re.compile(member.__sub_event__), member))
+                elif hasattr(member, '__format_type__'):
+                    self._formatters[member.__format_type__]\
+                        [member.__format_cmd__] = member
                 elif hasattr(member, '__public__'):
                     name = name.lower()
                     if hasattr(self, name):
