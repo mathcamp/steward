@@ -443,6 +443,8 @@ class StewardREPL(cmd.Cmd):
         retval = self.client.cmd(command, *args, **kwargs)
         if 'exc' in retval:
             print retval['exc']
+        elif retval['val'] is None:
+            pass
         elif isinstance(retval['val'], basestring):
             print retval['val']
         else:
