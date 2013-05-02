@@ -12,7 +12,7 @@ Quick Start
 To get started, just ``pip install .`` and run ``steward-server``. To connect,
 open another terminal and run ``steward``. You now have an interactive session
 that can run commands! To customize the options, you can copy the steward.yaml
-configuration file into /etc/steward/, or pass in options on the command line.
+configuration file into /etc/, or pass in options on the command line.
 
 Writing Extensions
 ==================

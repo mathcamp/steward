@@ -30,7 +30,7 @@
 #extensions: []
 
 # List of python packages to load server extensions from
-#pkg_extensions: ['steward.extensions']
+#pkg_extensions: []
 
 # Number of threads in the pool that runs @threaded extensions
 #worker_threads: 10
@@ -43,6 +43,9 @@ log_dir: /var/log/steward
 
 # Client options #
 ##################
+# The command prompt
+#prompt: '8==D '
+
 # Dictionary of aliases that you want by default in the REPL
 # For example
 # aliases:

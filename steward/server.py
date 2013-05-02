@@ -46,7 +46,7 @@ class Server(threading.Thread):
     tasklist : :py:class:`steward.tasks.TaskList`
         The tasklist loaded by the server
     pool : :py:class:`multiprocessing.pool.ThreadPool`
-        A threadpool for running ``@threaded`` extensions
+        A threadpool for running client commands
 
     """
     _pubstream = None

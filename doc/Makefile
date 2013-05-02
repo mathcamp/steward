@@ -44,9 +44,11 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 	-rm -rf $(APIDIR)/*
+	-rm -f steward.rst
 
 apidoc:
 	$(SPHINXAPIDOC) -f -o $(APIDIR) ../steward
+	-cp ../README.rst steward.rst
 	@echo
 	@echo "Build finished. The RST files are in $(APIDIR)."
 

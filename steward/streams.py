@@ -29,7 +29,7 @@ LOG = logging.getLogger(__name__)
 
 def default_stream(stream_class, socket_addr, socket_type, server):
     """
-    Convenience method for creating a :py:class:`~steward.streams.BaseStream`
+    Convenience method for creating a :py:class:`.BaseStream`
 
     Parameters
     ----------
@@ -44,7 +44,7 @@ def default_stream(stream_class, socket_addr, socket_type, server):
 
     Returns
     -------
-    stream : :py:class:`~steward.streams.BaseStream`
+    stream : :py:class:`.BaseStream`
 
     Examples
     --------

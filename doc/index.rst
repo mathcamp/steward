@@ -5,6 +5,8 @@ Steward
     :maxdepth: 3
     :glob:
 
+    README
+
     ref/steward
 
 Indices and tables

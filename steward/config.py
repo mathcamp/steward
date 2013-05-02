@@ -25,7 +25,7 @@ LEVEL_MAP = OrderedDict([
     ('warning', logging.WARNING),
     ('error', logging.ERROR),
 ])
-CONF_FILE = '/etc/steward/steward.yaml'
+CONF_FILE = '/etc/steward.yaml'
 COMMON_DEFAULTS = {
     'server_socket': 'tcp://127.0.0.1:1403',
     'server_channel_socket': 'tcp://127.0.0.1:1404',
@@ -35,14 +35,16 @@ COMMON_DEFAULTS = {
 }
 SERVER_DEFAULTS = {
     'extensions': [],
-    'pkg_extensions': ['steward.extensions'],
+    'pkg_extensions': [],
     'worker_threads': 10,
 }
 CLIENT_DEFAULTS = {
     'server': None,
+    'prompt': '8==D ',
     'aliases': {},
     'meta': {},
 }
+BASE_PKG_EXTENSIONS = ['steward.extensions']
 
 def get_log_config(conf):
     """Get the dictionary configuration for logging"""
@@ -99,7 +101,7 @@ def bare_config(conf_file):
     config.update(CLIENT_DEFAULTS)
     if conf_file is not None:
         if os.path.exists(conf_file):
-            file_config = yaml.load(open(CONF_FILE, 'r'))
+            file_config = yaml.load(open(conf_file, 'r'))
             config.update(file_config)
 
     return config
@@ -160,7 +162,7 @@ def _load_pkg_extensions(packages):
 
     """
     paths = []
-    for pkg in packages:
+    for pkg in BASE_PKG_EXTENSIONS + packages:
         package = importlib.import_module(pkg)
         paths.append(os.path.dirname(package.__file__))
     return _load_extensions(paths)

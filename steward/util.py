@@ -156,22 +156,15 @@ def formatter(format, cmd):
     The function decorated with @formatter should take either one or two
     arguments. The first is the output from the command that was run. The
     second, if included in the function definition, will contain the client's
-    meta dict. Two quick examples::
+    meta dict. A quick example::
 
         @public
         def orders(self):
             return [order.name for order in self.order_list]
 
         @formatter('text', 'orders')
-        def format_orders(output):
+        def format_orders(self, output):
             return ', '.join(output)
-
-        @formatter('html', 'orders')
-        def format_horders(output, client)
-            if client.get('single_line'):
-                return '<span>' + ', '.join(output) + '</span>'
-            else:
-                return ''.join(['<div>' + name + '</div>' for name in output])
 
     """
     def decorator(fxn):
@@ -181,12 +174,11 @@ def formatter(format, cmd):
         return fxn
     return decorator
 
-
 def serialize(*args, **kwargs):
     """
     Decorator for server methods that should run one-at-a-time.
 
-    If the method is currently being run, it will asynchronously sleep until
+    If the method is currently being run, it will sleep until
     that call is complete.
 
     Notes

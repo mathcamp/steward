@@ -254,7 +254,6 @@ class StewardREPL(cmd.Cmd):
     client = None
     commands = []
     aliases = {}
-    prompt = '8==D '
     running = False
     subscriptions = set()
     def start(self, conf):
@@ -268,6 +267,7 @@ class StewardREPL(cmd.Cmd):
 
         """
         self.identchars += '.'
+        self.prompt = conf['prompt']
         self.client = Client(conf)
         self.client.format = 'text'
         self.client.meta.update(conf['meta'])
