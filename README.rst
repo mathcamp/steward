@@ -139,6 +139,6 @@ in the steward.yaml configuration file, or on the command line with
 More
 ----
 
-You can find more examples at http://github.com/mathcamp/steward-extensions,
+You can find more examples at http://github.com/mathcamp/steward_extensions,
 including a simple functioning salt extension. (Are you using salt? You really
 should.)
