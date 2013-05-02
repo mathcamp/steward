@@ -106,6 +106,26 @@ class Server(threading.Thread):
         """
         return self._client_metadata.get(self.uid, {})
 
+    def get_formatter(self, command, format):
+        """
+        Get a specific formatter
+
+        Parameters
+        ----------
+        command : str
+            The command to format
+        format : str
+            The format to use
+
+        Returns
+        -------
+        formatter : callable
+            Takes two arguments, the server and the output. May be None if no
+            formatter is found.
+
+        """
+        return self._formatters.get(format, {}).get(command)
+
     def handle_message(self, uid, msg):
         """
         Handle a client message and return a response
@@ -117,7 +137,6 @@ class Server(threading.Thread):
 
         """
         command = msg.get('cmd')
-        # If the command exists on the Server object, run that
         cur = threading.current_thread()
         try:
             setattr(cur, 'uid', uid)
@@ -132,17 +151,9 @@ class Server(threading.Thread):
                 value = method(*msg.get('args', []), **msg.get('kwargs', {}))
 
                 format = self.client.get('format', 'raw')
-                formatter = self._formatters.get(format, {}).get(command)
-                try:
-                    if formatter is not None:
-                        if len(inspect.getargspec(formatter).args) == 2:
-                            value = formatter(value, self.client)
-                        else:
-                            value = formatter(value)
-                except:
-                    LOG.exception("Error running formatter for %s", msg['cmd'])
-
-
+                formatter = self.get_formatter(command, format)
+                if formatter is not None:
+                    value = formatter(self, value)
 
                 retval = {'val':value}
             else:

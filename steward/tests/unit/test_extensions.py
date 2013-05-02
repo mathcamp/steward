@@ -16,19 +16,19 @@ def unlisted_ping(self):
     return 'pong'
 
 @formatter('text', 'formatme')
-def format_ping(output):
+def format_ping(self, output):
     """ Output formatter """
     return 'text'
 
-@formatter('complex', 'formatme')
-def meta_echo_formatter(output, meta):
-    """ Complex output formatter """
-    return meta
-
 @formatter('raw', 'formatme')
-def raw_formatme(output):
+def raw_formatme(self, output):
     """ Output formatter """
     return 'raw'
+
+@formatter('server', 'formatme')
+def echo_server(self, output):
+    """ Return the server object """
+    return self
 
 @public
 def formatme(self):
@@ -149,14 +149,8 @@ class TestDecorators(tests.BaseTest):
         retval = self.call_server('formatme')
         self.assert_result_equal(retval, 'text')
 
-    def test_formatter_meta_arg(self):
-        """ Output formatters can receive the 'meta' dict as an arg """
-        self.meta['format'] = 'complex'
+    def test_extension_access_server(self):
+        """ Extension have access to the server """
+        self.meta['format'] = 'server'
         retval = self.call_server('formatme')
-        self.assert_result_equal(retval, self.meta)
-
-    def test_extension_access_meta_dict(self):
-        """ Extension have access to the 'meta' dict """
-        self.meta['unique'] = 'hihi'
-        retval = self.call_server('echo_meta')
-        self.assert_result_equal(retval, self.meta)
+        self.assert_result_equal(retval, self.server)

@@ -90,7 +90,7 @@ def sleep(self, t=1):
     return True
 
 @formatter('text', 'tasks.running')
-def format_running(output):
+def format_running(self, output):
     """ Format the output of tasks.running """
     lines = []
     for name, ts in output:
@@ -99,7 +99,7 @@ def format_running(output):
     return '\n'.join(lines)
 
 @formatter('text', 'tasks.schedule')
-def format_schedule(output):
+def format_schedule(self, output):
     """ Format the output of tasks.schedule """
     lines = []
     for name, sec in output:
@@ -178,7 +178,7 @@ def _fxn_signature(cmd, *args, **kwargs):
     return cmd + '(' + arglist + ')'
 
 @formatter('text', 'status')
-def format_status(output):
+def format_status(self, output):
     """ Format the output of status """
     lines = ['Commands', '--------']
     for fxn, seconds in output['commands']:
@@ -232,8 +232,8 @@ def get_bool(self, string):
     Parameters
     ----------
     string : basestring or bool
-        The argument passed in from a client or a bool (if a bool this method
-        will just return that value)
+        The argument passed in from a client or a bool (if this is a bool the
+        method is a no-op)
 
     Returns
     -------
@@ -256,3 +256,24 @@ def get_bool(self, string):
     elif string in ('n', 'no', 'f', 'false', '0'):
         return False
     raise TypeError("Unrecognized boolean type %s" % string)
+
+@private
+def get_list(self, string):
+    """
+    Convert a comma-delimited string argument into a list
+
+    Parameters
+    ----------
+    string : basestring or list
+        The argument passed in from a client or a list (if not a string this
+        method is a no-op)
+
+    Returns
+    -------
+    the_list : list
+
+    """
+    if isinstance(string, basestring):
+        return string.split(',')
+    else:
+        return string
