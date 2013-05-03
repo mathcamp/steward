@@ -174,53 +174,6 @@ def formatter(format, cmd):
         return fxn
     return decorator
 
-def serialize(*args, **kwargs):
-    """
-    Decorator for server methods that should run one-at-a-time.
-
-    If the method is currently being run, it will sleep until
-    that call is complete.
-
-    Notes
-    -----
-    An example of forcing a single deploy at a time::
-
-        @public
-        @serialize
-        def deploy(self):
-            return _do_deploy()
-
-    Alternatively, you may make the serialized function return False
-    immediately if it is already running, rather than queueing it for later::
-
-        @public
-        @serialize(blocking=False)
-        def deploy(self):
-            return _do_deploy()
-
-    """
-    def create_wrapper(blocking, fxn):
-        """Create the wrapper for the serialized function"""
-        fxn.__lock__ = threading.RLock()
-        @functools.wraps(fxn)
-        def wrapper(*args, **kwargs):
-            """Wrapper for the serialized function"""
-            if not fxn.__lock__.acquire(blocking=blocking):
-                return False
-            try:
-                result = fxn(*args, **kwargs)
-            finally:
-                fxn.__lock__.release()
-            return result
-        return wrapper
-
-    if args:
-        return create_wrapper(True, args[0])
-    elif kwargs:
-        return functools.partial(create_wrapper, kwargs.pop('blocking'))
-    else:
-        raise TypeError("@serialize called with wrong args!")
-
 def synchronized(obj, lock_arg=None):
     """
     A decorator for synchronizing methods
