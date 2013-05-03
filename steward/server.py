@@ -64,11 +64,12 @@ class Server(threading.Thread):
         self.pool = None
         self._start_methods = []
         self._formatters = defaultdict(dict)
-        self._client_metadata = {}
         self._apply_extensions(conf['extension_mods'])
         self._queue = None
         self._active_commands = []
         self._background_cmds = []
+        # Mapping of uids to threads
+        self._client_cmds = {}
 
     @property
     def uid(self):
@@ -89,7 +90,7 @@ class Server(threading.Thread):
 
         """
         cur = threading.current_thread()
-        return getattr(cur, 'uid', None)
+        return getattr(cur, '_uid', None)
 
     @property
     def client(self):
@@ -106,7 +107,8 @@ class Server(threading.Thread):
         :py:meth:`steward.server.Server.uid`
 
         """
-        return self._client_metadata.get(self.uid, {})
+        cur = threading.current_thread()
+        return getattr(cur, '_client_meta', {})
 
     def get_formatter(self, command, format):
         """
@@ -141,8 +143,8 @@ class Server(threading.Thread):
         command = msg.get('cmd')
         cur = threading.current_thread()
         try:
-            setattr(cur, 'uid', uid)
-            self._client_metadata[uid] = msg.get('meta', {})
+            setattr(cur, '_uid', uid)
+            setattr(cur, '_client_meta', msg.get('meta', {}))
 
             attr_list = command.split('.')
             method = self
@@ -164,8 +166,8 @@ class Server(threading.Thread):
             LOG.exception("Error running %s" % command)
             retval = {'exc':traceback.format_exc()}
         finally:
-            delattr(cur, 'uid')
-            del self._client_metadata[uid]
+            delattr(cur, '_uid')
+            delattr(cur, '_client_meta')
             return retval #pylint: disable=W0150
 
     def publish(self, name, data=None):
@@ -209,10 +211,15 @@ class Server(threading.Thread):
             The command passed up by the client
 
         """
+        self._client_cmds[uid] = threading.current_thread()
         command_key = (msg, datetime.now())
         self._active_commands.append(command_key)
         retval = self.handle_message(uid, msg)
         self._active_commands.remove(command_key)
+        # If the client has made another request since we started running
+        # this one, don't try to send the response to that client
+        if self._client_cmds[uid] != threading.current_thread():
+            uid = None
         self._queue.put((uid, retval))
 
     def start(self):
@@ -238,7 +245,8 @@ class Server(threading.Thread):
             while True:
                 uid, response = self._queue.get(block=False)
                 try:
-                    self._stream.send(uid, response)
+                    if uid is not None:
+                        self._stream.send(uid, response)
                 except TypeError:
                     LOG.exception("Error sending response")
                     retval = {'exc':traceback.format_exc()}

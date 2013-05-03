@@ -74,7 +74,7 @@ class BaseStream(object):
     -----
     We have to construct the zeromq frames ourselves, since we want more
     control over the messages. You can find documentation on the frames here:
-    http://zguide.zeromq.org/page:all#The-Extended-Reply-Envelope
+    `http://zguide.zeromq.org/page:all#The-Extended-Reply-Envelope`_
 
     """
     __metaclass__ = ABCMeta

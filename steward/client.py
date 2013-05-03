@@ -55,7 +55,7 @@ class Client(object):
         self.conf = conf
         self.meta = {}
         c = zmq.Context()
-        socket = c.socket(zmq.REQ)
+        socket = c.socket(zmq.DEALER)
 
         if conf['server'] is not None:
             zmq.ssh.tunnel_connection(socket, conf['server_socket'],
