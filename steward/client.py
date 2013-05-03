@@ -47,6 +47,9 @@ class Client(object):
         True while streams are open, False after calling ``close()``
     sub_callback : callable
         A function with the signature of callback(name, data)
+    partial_callback : callable
+        This attribute will be called when the client receives a partial
+        response from the server
 
     """
     def __init__(self, conf=None):
@@ -70,6 +73,13 @@ class Client(object):
         self._callback = None
         self._substream = None
         self.open = True
+        self.partial_callback = None
+        self._nonce = 0
+
+    def _create_nonce(self):
+        """ Construct a nonce """
+        self._nonce += 1
+        return self._nonce - 1
 
     @property
     def format(self):
@@ -138,7 +148,10 @@ class Client(object):
         Notes
         -----
         Any args and kwargs will be serialized and passed up to the server as
-        arguments for the command
+        arguments for the command.
+
+        .. warning::
+            This method is not thread-safe!
 
         Returns
         -------
@@ -146,9 +159,19 @@ class Client(object):
             The dictionary response from the server
 
         """
+        nonce = self._create_nonce()
         self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs,
-            'meta':self.meta})
-        return self._stream.recv()
+            'meta':self.meta, 'nonce':nonce})
+        while True:
+            resp = self._stream.recv()
+            if resp['nonce'] != nonce:
+                continue
+            if resp['type'] == 'partial':
+                if self.partial_callback is not None:
+                    # pylint: disable=E1102
+                    self.partial_callback(resp)
+            else:
+                return resp
 
     def _on_pub(self, name, data):
         """
@@ -269,6 +292,7 @@ class StewardREPL(cmd.Cmd):
         self.identchars += '.'
         self.prompt = conf['prompt']
         self.client = Client(conf)
+        self.client.partial_callback = self.on_partial
         self.client.format = 'text'
         self.client.meta.update(conf['meta'])
         self.client.sub_callback = self._sub_callback
@@ -276,7 +300,7 @@ class StewardREPL(cmd.Cmd):
         for alias, longvalue in conf['aliases'].iteritems():
             self.do_alias(alias + ' ' + longvalue)
         self.running = True
-        self.commands = self.client.cmd('commands').get('val')
+        self.commands = self.client.cmd('commands').get('response')
         for name, docs in self.commands:
             self.set_cmd(name, docs)
         while self.running:
@@ -294,6 +318,10 @@ class StewardREPL(cmd.Cmd):
     def do_shell(self, arglist):
         """ Run a shell command """
         print subprocess.check_output(shlex.split(arglist))
+
+    def on_partial(self, resp):
+        """ Print out the partial response """
+        print resp['desc']
 
     def do_meta(self, arglist):
         """
@@ -441,14 +469,17 @@ class StewardREPL(cmd.Cmd):
 
         """
         retval = self.client.cmd(command, *args, **kwargs)
-        if 'exc' in retval:
-            print retval['exc']
-        elif retval['val'] is None:
-            pass
-        elif isinstance(retval['val'], basestring):
-            print retval['val']
+        if retval['type'] == 'error':
+            print retval['error']
+        elif retval['type'] == 'response':
+            if retval['response'] is None:
+                pass
+            elif isinstance(retval['response'], basestring):
+                print retval['response']
+            else:
+                pprint.pprint(retval['response'])
         else:
-            pprint.pprint(retval['val'])
+            print "Unrecognized return type {}!".format(retval['type'])
 
     @repl_command
     def default(self, *args, **kwargs):

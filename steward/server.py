@@ -110,6 +110,24 @@ class Server(threading.Thread):
         cur = threading.current_thread()
         return getattr(cur, '_client_meta', {})
 
+    @property
+    def nonce(self):
+        """
+        The nonce of the current request
+
+        Returns
+        -------
+        nonce : int
+
+        Notes
+        -----
+        This is subject to the same constraints as
+        :py:meth:`.Server.uid`
+
+        """
+        cur = threading.current_thread()
+        return getattr(cur, '_nonce')
+
     def get_formatter(self, command, format):
         """
         Get a specific formatter
@@ -145,6 +163,7 @@ class Server(threading.Thread):
         try:
             setattr(cur, '_uid', uid)
             setattr(cur, '_client_meta', msg.get('meta', {}))
+            setattr(cur, '_nonce', msg['nonce'])
 
             attr_list = command.split('.')
             method = self
@@ -159,15 +178,24 @@ class Server(threading.Thread):
                 if formatter is not None:
                     value = formatter(self, value)
 
-                retval = {'val':value}
+                retval = {
+                    'type':'response',
+                    'response':value,
+                    'nonce':msg['nonce'],
+                }
             else:
                 raise AttributeError('{} is not public!'.format(command))
         except Exception as e:
             LOG.exception("Error running %s" % command)
-            retval = {'exc':traceback.format_exc()}
+            retval = {
+                'type':'error',
+                'error':traceback.format_exc(),
+                'nonce':msg['nonce'],
+            }
         finally:
             delattr(cur, '_uid')
             delattr(cur, '_client_meta')
+            delattr(cur, '_nonce')
             return retval #pylint: disable=W0150
 
     def publish(self, name, data=None):
@@ -222,6 +250,31 @@ class Server(threading.Thread):
             uid = None
         self._queue.put((uid, retval))
 
+    def partial(self, msg_type, desc=''):
+        """
+        Send a partial response to a client
+
+        Parameters
+        ----------
+        msg_type : str
+            Short string indicating some information about the partial reply
+        desc : str, optional
+            Human-readable description about this partial reply (default '')
+
+        """
+        # If the client has made another request since we started running
+        # this one, don't try to send the response to that client
+        uid = self.uid
+        if self._client_cmds[uid] != threading.current_thread():
+            uid = None
+        retval = {
+            'type':'partial',
+            'partial':msg_type,
+            'desc':desc,
+            'nonce':self.nonce,
+        }
+        self._queue.put((uid, retval))
+
     def start(self):
         # we have to create the thread pool from the Main thread
         self.pool = ThreadPool(processes=self.conf['worker_threads'])
@@ -274,17 +327,20 @@ class Server(threading.Thread):
             self.running = True
             self.starting = False
             LOG.info("Started")
-            while self.running:
-                try:
-                    uid = 's'
-                    msg = {}
-                    uid, msg = self._stream.recv(timeout=0.1)
-                    LOG.info("Got client command: %s" % msg)
-                    self.pool.apply_async(self._handle_async, (uid, msg))
-                except zmq.ZMQError:
-                    pass
+            try:
+                while self.running:
+                    try:
+                        uid = 's'
+                        msg = {}
+                        uid, msg = self._stream.recv(timeout=0.1)
+                        LOG.info("Got client command: %s" % msg)
+                        self.pool.apply_async(self._handle_async, (uid, msg))
+                    except zmq.ZMQError:
+                        pass
 
-                self._try_respond()
+                        self._try_respond()
+            except KeyboardInterrupt:
+                self.stop()
 
             LOG.info("Shutting down")
             while self._active_commands or self._background_cmds:
