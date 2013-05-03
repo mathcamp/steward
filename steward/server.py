@@ -14,6 +14,8 @@ import types
 import inspect
 import zmq
 import threading
+import signal
+import time
 from datetime import datetime
 from collections import defaultdict
 from multiprocessing.pool import ThreadPool
@@ -230,6 +232,20 @@ class Server(threading.Thread):
             self._pubstream = streams.default_stream(self.conf['stream'],
                 self.conf['server_channel_socket'], zmq.PUB, True)
 
+    def _try_respond(self):
+        """ Send all queued responses to clients, if any """
+        try:
+            while True:
+                uid, response = self._queue.get(block=False)
+                try:
+                    self._stream.send(uid, response)
+                except TypeError:
+                    LOG.exception("Error sending response")
+                    retval = {'exc':traceback.format_exc()}
+                    self._stream.send(uid, retval)
+        except Empty:
+            pass
+
     def run(self):
         """Listen for client commands and process them"""
         try:
@@ -243,6 +259,10 @@ class Server(threading.Thread):
                 meth(self)
             self.tasklist.pool = self.pool
             self.tasklist.start()
+
+            # Register to shut down gracefully on the SIGQUIT signal
+            signal.signal(signal.SIGQUIT, lambda *_: self.stop())
+
             self.running = True
             self.starting = False
             LOG.info("Started")
@@ -256,16 +276,21 @@ class Server(threading.Thread):
                 except zmq.ZMQError:
                     pass
 
-                try:
-                    uid, response = self._queue.get(block=False)
-                    try:
-                        self._stream.send(uid, response)
-                    except TypeError:
-                        LOG.exception("Error sending response")
-                        retval = {'exc':traceback.format_exc()}
-                        self._stream.send(uid, retval)
-                except Empty:
-                    pass
+                self._try_respond()
+
+            LOG.info("Shutting down")
+            while self._active_commands or self._background_cmds:
+                if self._active_commands:
+                    LOG.info("Waiting for active commands: %s",
+                        self._active_commands)
+                if self._background_cmds:
+                    LOG.info("Waiting for background commands: %s",
+                        self._background_cmds)
+                for _ in range(10):
+                    time.sleep(1)
+                    self._try_respond()
+
+            self._try_respond()
 
         finally:
             self.stop()
