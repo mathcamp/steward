@@ -8,7 +8,6 @@ Test the client-server interface
 
 """
 from multiprocessing import Queue
-from mock import MagicMock
 from steward import client
 from steward.util import public
 from . import util

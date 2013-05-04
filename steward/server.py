@@ -322,7 +322,9 @@ class Server(threading.Thread):
             self.tasklist.start()
 
             # Register to shut down gracefully on the SIGQUIT signal
-            signal.signal(signal.SIGQUIT, lambda *_: self.stop())
+            my_thread = threading.current_thread()
+            if not my_thread.daemon:
+                signal.signal(signal.SIGQUIT, lambda *_: self.stop())
 
             self.running = True
             self.starting = False
@@ -387,8 +389,6 @@ class Server(threading.Thread):
 
         Parameters
         ----------
-        self : object
-            The instance to apply the extensions to
         mods : list
             List of modules to load the extensions from
 

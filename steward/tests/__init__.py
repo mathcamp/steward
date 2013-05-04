@@ -26,7 +26,8 @@ class BaseTest(unittest.TestCase):
         :py:meth:`steward.client.Client.cmd`
 
         """
-        msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs, 'meta':self.meta}
+        msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs, 'meta':self.meta,
+            'nonce':1}
         return self.server.handle_message('test', msg)
 
     def assert_result_equal(self, first, second, msg=None):
@@ -43,7 +44,7 @@ class BaseTest(unittest.TestCase):
             Message to print if the assertion fails
 
         """
-        self.assertEqual(first.get('val'), second, msg)
+        self.assertEqual(first.get('response'), second, msg)
 
     def assert_result_exc(self, result, msg=None):
         """
@@ -57,4 +58,4 @@ class BaseTest(unittest.TestCase):
             Message to print if the assertion fails
 
         """
-        self.assertTrue('exc' in result, msg)
+        self.assertTrue(result['type'] == 'error', msg)
