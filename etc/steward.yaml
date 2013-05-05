@@ -46,6 +46,12 @@ log_dir: /var/log/steward
 # The command prompt
 #prompt: '8==D '
 
+# List of directories to load client extensions from
+#client_extensions: []
+
+# List of python packages to load client extensions from
+#client_pkg_extensions: []
+
 # Dictionary of aliases that you want by default in the REPL
 # For example
 # aliases:

@@ -51,10 +51,9 @@ def sh(self, *args, **kwargs):
 @invisible
 def commands(self):
     """List all available server commands"""
-    lines = [(name, doc) for name, doc in _visible_members(self)]
-    return lines
+    return list(_visible_members(self, self))
 
-def _visible_members(object):
+def _visible_members(self, object):
     """Find all visible members of an object"""
     for name, member in inspect.getmembers(object):
         if name.startswith('_'):
@@ -64,8 +63,9 @@ def _visible_members(object):
         if getattr(member, '__invisible__', False):
             continue
         if not inspect.ismethod(member):
-            for subname, doc in _visible_members(member):
-                yield name + '.' + subname, doc
+            for element in _visible_members(self, member):
+                element['name'] = name + '.' + element['name']
+                yield element
         if not getattr(member, '__public__', False):
             continue
         if not inspect.isfunction(member) and not inspect.ismethod(member) \
@@ -73,7 +73,15 @@ def _visible_members(object):
             doc = getattr(member.__call__, '__doc__', None) or ''
         else:
             doc = getattr(member, '__doc__', None) or ''
-        yield name, doc
+        element = {'name':name, 'doc':doc}
+
+        if name == 'ssh':
+            print name
+        arg_complete = getattr(object, 'complete_' + name, None)
+        if arg_complete:
+            element['complete'] = arg_complete(self)
+
+        yield element
 
 @invisible
 def sleep(self, t=1):

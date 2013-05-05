@@ -40,6 +40,8 @@ SERVER_DEFAULTS = {
 }
 CLIENT_DEFAULTS = {
     'server': None,
+    'client_extensions': [],
+    'client_pkg_extensions': [],
     'prompt': '8==D ',
     'aliases': {},
     'meta': {},
@@ -162,30 +164,29 @@ def _load_pkg_extensions(packages):
 
     """
     paths = []
-    for pkg in BASE_PKG_EXTENSIONS + packages:
+    for pkg in packages:
         package = importlib.import_module(pkg)
         paths.append(os.path.dirname(package.__file__))
     return _load_extensions(paths)
 
-def build_server_config_options(config):
+def load_extensions(config, is_server):
     """
-    Take a config dict and add the generated config values
+    Take a config dict and load the specified extensions
 
     Parameters
     ----------
     config : dict
-
-    Notes
-    -----
-    At the moment we are adding the default path for `extensions` and creating
-    the options `extension_mods`. The server loads its extensions from this
-    option (which contain the loaded modules) rather than loading them from the
-    file system.
+    is_server : bool
 
     """
-    config['extension_mods'] = _load_extensions(config['extensions'])
-    config['extension_mods'] += _load_pkg_extensions(config['pkg_extensions'])
-    return config
+    if is_server:
+        ext = _load_extensions(config['extensions'])
+        ext += _load_pkg_extensions(BASE_PKG_EXTENSIONS +
+            config['pkg_extensions'])
+    else:
+        ext = _load_extensions(config['client_extensions'])
+        ext += _load_pkg_extensions(config['client_pkg_extensions'])
+    return ext
 
 class CMDLineOptionsParserMixin(object):
     """Mixin for parsing configuration options from the command line"""
@@ -263,6 +264,12 @@ class CMDLineOptionsParserMixin(object):
             client_group = parser.add_argument_group()
             client_group.add_argument('--server',
                 help="Remote server to connect to via ssh")
+            client_group.add_argument('--client-extensions',
+                type=lambda x:x.split(','),
+                help="Directories to look for client extensions")
+            client_group.add_argument('--client-pkg-extensions',
+                type=lambda x:x.split(','),
+                help="Python packages containing client extensions")
 
         self.options(parser)
         args = vars(parser.parse_args(argv))
@@ -283,7 +290,5 @@ class CMDLineOptionsParserMixin(object):
             logging.basicConfig(level=LEVEL_MAP[config['log_level'].lower()])
 
         self.configure(args)
-        if is_server:
-            return build_server_config_options(config)
-        else:
-            return config
+        config['extension_mods'] = load_extensions(config, is_server)
+        return config

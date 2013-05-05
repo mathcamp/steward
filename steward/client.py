@@ -262,8 +262,6 @@ class StewardREPL(cmd.Cmd):
     ----------
     client : :py:class:`~steward.clients.Client`
         The client that is connected to the server
-    commands : list
-        List of command tuples (name, description) retrieved from server
     aliases : dict
         Dictionary of aliased commands
     prompt : str
@@ -275,7 +273,6 @@ class StewardREPL(cmd.Cmd):
 
     """
     client = None
-    commands = []
     aliases = {}
     running = False
     subscriptions = set()
@@ -300,9 +297,9 @@ class StewardREPL(cmd.Cmd):
         for alias, longvalue in conf['aliases'].iteritems():
             self.do_alias(alias + ' ' + longvalue)
         self.running = True
-        self.commands = self.client.cmd('commands').get('response')
-        for name, docs in self.commands:
-            self.set_cmd(name, docs)
+        commands = self.client.cmd('commands').get('response')
+        self.set_server_commands(commands)
+        self._apply_extensions(conf['extension_mods'])
         while self.running:
             try:
                 self.cmdloop()
@@ -310,6 +307,43 @@ class StewardREPL(cmd.Cmd):
                 print
             except:
                 traceback.print_exc()
+
+    @property
+    def meta(self):
+        """ Access the client's meta dictionary """
+        return self.client.meta
+
+    def _apply_extensions(self, mods):
+        """
+        Apply extensions modules
+
+        Parameters
+        ----------
+        mods : list
+            List of modules to load the extensions from
+
+        """
+        on_start_methods = []
+        for mod in mods:
+            members = inspect.getmembers(mod, callable)
+            for name, member in members:
+                if name.startswith('_'):
+                    continue
+
+                if name == 'on_client_start':
+                    on_start_methods.append(member)
+                    continue
+
+                ext_name = getattr(member, '__client_ext__', False)
+                if ext_name:
+                    bound_method = types.MethodType(repl_command(member), self,
+                        StewardREPL)
+                    if isinstance(ext_name, basestring):
+                        name = ext_name
+                    setattr(self, 'do_' + name, bound_method)
+
+        for method in on_start_methods:
+            method(self)
 
     def help_help(self):
         """Print the help text for help"""
@@ -338,11 +372,11 @@ class StewardREPL(cmd.Cmd):
 
         """
         if not arglist:
-            pprint.pprint(self.client.meta)
+            pprint.pprint(self.meta)
         else:
             args = arglist.split()
             key, val = args
-            self.client.meta[key] = json.loads(val)
+            self.meta[key] = json.loads(val)
 
     @repl_command
     def do_sub(self, channel=''):
@@ -434,6 +468,13 @@ class StewardREPL(cmd.Cmd):
             self.do_help(name[3:])
             print '-----------------'
 
+    def set_server_commands(self, commands):
+        """ Attach a list of commands from the server to this class """
+        for element in commands:
+            self.set_cmd(element['name'], element['doc'])
+            if 'complete' in element:
+                self.set_autocomplete(element['name'], element['complete'])
+
     def set_cmd(self, name, doc):
         """Create local bound methods for a remote command
 
@@ -452,6 +493,37 @@ class StewardREPL(cmd.Cmd):
         wrapper.__doc__ = doc
         bound_cmd = types.MethodType(wrapper, self, StewardREPL)
         setattr(self, 'do_' + name, bound_cmd)
+
+    def set_autocomplete(self, command, args):
+        """ Set a command to autocomplete the given arguments """
+        def wrapper(self, text, line, begidx, endidx):
+            """ A wrapper for a simple autocomplete implementation """
+            # We have to do a little magic here because cmd.py apparently
+            # doesn't count '-' as part of a word
+            while line[begidx-1] != ' ':
+                begidx -= 1
+            full_text = line[begidx:endidx]
+            prefix = len(full_text) - len(text)
+            matches = [arg[prefix:] for arg in args if
+                arg.startswith(full_text)]
+            if not matches:
+                matches.append(text)
+            return matches
+        bound_cmd = types.MethodType(wrapper, self, StewardREPL)
+        setattr(self, 'complete_' + command, bound_cmd)
+
+    def run_cmd(self, command, *args, **kwargs):
+        """
+        Run a command on the server and return the output
+
+        """
+        retval = self.client.cmd(command, *args, **kwargs)
+        if retval['type'] == 'response':
+            return retval['response']
+        elif retval['type'] == 'error':
+            raise Exception('Server error: %s' % retval['error'])
+        else:
+            raise TypeError('Unrecognized response: %s' % retval)
 
     def _run_server_command(self, command, *args, **kwargs):
         """

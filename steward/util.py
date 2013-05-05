@@ -14,6 +14,37 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
+def local(arg):
+    """
+    Decorator for methods that are attached to the client REPL
+
+    Notes
+    -----
+    ::
+
+        @local
+        def set_format(self, format):
+            self.meta['format'] = format
+
+    You can also specify the name of the extension explicitly in the
+    decorator::
+
+        @local('shop.default')
+        def set_default_cheese(self, cheese):
+            self.meta['default_cheese'] = cheese
+
+    """
+    def wrap_fxn(fxn):
+        """ The actual decorator for the fxn """
+        fxn.__client_ext__ = ext_name
+        return fxn
+    if inspect.isfunction(arg):
+        ext_name = True
+        return wrap_fxn(arg)
+    else:
+        ext_name = arg
+        return wrap_fxn
+
 def public(fxn):
     """
     Decorator for methods on server that are callable from clients
