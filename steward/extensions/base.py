@@ -38,6 +38,12 @@ def pub(self, channel, **kwargs):
     return True
 
 @public
+def version(self):
+    """ Get the current version of steward """
+    from steward.__version__ import __version__
+    return __version__
+
+@public
 def sh(self, *args, **kwargs):
     """
     sh(*args, **kwargs)

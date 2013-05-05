@@ -379,6 +379,12 @@ class StewardREPL(cmd.Cmd):
             self.meta[key] = json.loads(val)
 
     @repl_command
+    def do_client_version(self):
+        """ Get the current version of steward running on the client """
+        from steward.__version__ import __version__
+        print __version__
+
+    @repl_command
     def do_sub(self, channel=''):
         """
         Subscribe to a channel
