@@ -381,6 +381,7 @@ class StewardREPL(cmd.Cmd):
     @repl_command
     def do_client_version(self):
         """ Get the current version of steward running on the client """
+        # pylint: disable=F0401,E0611
         from steward.__version__ import __version__
         print __version__
 

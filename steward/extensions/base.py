@@ -40,6 +40,7 @@ def pub(self, channel, **kwargs):
 @public
 def version(self):
     """ Get the current version of steward """
+    # pylint: disable=F0401,E0611
     from steward.__version__ import __version__
     return __version__
 
