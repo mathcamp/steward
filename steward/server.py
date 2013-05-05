@@ -340,7 +340,7 @@ class Server(threading.Thread):
                     except zmq.ZMQError:
                         pass
 
-                        self._try_respond()
+                    self._try_respond()
             except KeyboardInterrupt:
                 self.stop()
 

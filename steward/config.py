@@ -108,7 +108,7 @@ def bare_config(conf_file):
 
     return config
 
-def load_config(conf_file=CONF_FILE):
+def load_config(is_server, conf_file=CONF_FILE):
     """
     Load the configuration options from a file.
     
@@ -118,7 +118,9 @@ def load_config(conf_file=CONF_FILE):
         The file to load from.
 
     """
-    return build_server_config_options(bare_config(conf_file))
+    config = bare_config(conf_file)
+    config['extension_mods'] = load_extensions(config, is_server)
+    return config
 
 __loaded_modules__ = set()
 

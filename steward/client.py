@@ -54,7 +54,7 @@ class Client(object):
     """
     def __init__(self, conf=None):
         if conf is None:
-            conf = config.load_config()
+            conf = config.load_config(False)
         self.conf = conf
         self.meta = {}
         c = zmq.Context()
