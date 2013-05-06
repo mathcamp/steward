@@ -11,6 +11,7 @@ import inspect
 import subprocess
 import time
 import logging
+import json
 from datetime import datetime, timedelta
 from steward import public, invisible, private, formatter
 
@@ -186,14 +187,27 @@ def background(self, command, *args, **kwargs):
     fxn_args = [self, command] + list(args)
     self.pool.apply_async(_run_in_bg, fxn_args, kwargs)
 
+def _short_arg(arg, max_length=10, truncate_newlines=True):
+    """ Convert an arg into a string, truncated at a length """
+    str_arg = json.dumps(arg)
+    if len(str_arg) > max_length:
+        str_arg = str_arg[:9] + '...'
+    if truncate_newlines and '\n' in str_arg:
+        str_arg = str_arg[:str_arg.index('\n')] + '...'
+    return str_arg
+
 def _fxn_signature(cmd, *args, **kwargs):
     """Construct a string representation of a function call"""
-    arglist = ', '.join([str(arg) for arg in args])
+    arglist = ', '.join([_short_arg(arg) for arg in args])
     if kwargs:
-        kwarglist = ', '.join(["{}={}".format(k, v) for k, v
+        kwarglist = ', '.join(["{}={}".format(k, _short_arg(v)) for k, v
             in kwargs.iteritems()])
         arglist += ', ' + kwarglist
     return cmd + '(' + arglist + ')'
+
+@public
+def foo(self, *args, **kwargs):
+    time.sleep(10)
 
 @formatter('status')
 def format_status(self, response):
