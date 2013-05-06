@@ -507,7 +507,7 @@ class StewardREPL(cmd.Cmd):
             """ A wrapper for a simple autocomplete implementation """
             # We have to do a little magic here because cmd.py apparently
             # doesn't count '-' as part of a word
-            while line[begidx-1] != ' ':
+            while line[begidx-1] not in ' ,':
                 begidx -= 1
             full_text = line[begidx:endidx]
             prefix = len(full_text) - len(text)
