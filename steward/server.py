@@ -198,7 +198,10 @@ class Server(threading.Thread):
                         return
                 except:
                     LOG.exception("Error running event handler!")
-        self._pubstream.send(name, data)
+        try:
+            self._pubstream.send(name, data)
+        except:
+            LOG.exception("Error publishing event %s with data %s", name, data)
 
     def _handle_async(self, uid, msg):
         """
@@ -244,7 +247,7 @@ class Server(threading.Thread):
             'type':'partial',
             'partial':msg_type,
             'desc':desc,
-            'uid':self.uid,
+            'uid':self.req_uid,
         }
         self._queue.put((uid, retval))
 
@@ -273,10 +276,13 @@ class Server(threading.Thread):
                 try:
                     if uid is not None:
                         self._stream.send(uid, response)
-                except TypeError:
+                except:
                     LOG.exception("Error sending response")
-                    retval = {'exc':traceback.format_exc()}
-                    self._stream.send(uid, retval)
+                    response['type'] = 'error'
+                    if 'response' in response:
+                        del response['response']
+                    response['error'] = traceback.format_exc()
+                    self._stream.send(uid, response)
         except Empty:
             pass
 
