@@ -205,10 +205,6 @@ def _fxn_signature(cmd, *args, **kwargs):
         arglist += ', ' + kwarglist
     return cmd + '(' + arglist + ')'
 
-@public
-def foo(self, *args, **kwargs):
-    time.sleep(10)
-
 @formatter('status')
 def format_status(self, response):
     """ Format the response of status """
