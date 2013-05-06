@@ -45,6 +45,40 @@ def local(arg):
         ext_name = arg
         return wrap_fxn
 
+def formatter(cmd):
+    """
+    Decorator for output formatters
+
+    These function are attached to the REPL and are used to pretty-print the
+    output of commands returned by the server.
+
+    Parameters
+    ----------
+    cmd : str
+        The command to format (ex. 'pub')
+
+    Notes
+    -----
+    The function decorated with @formatter should take two arguments: 'self'
+    (the REPL) and 'response' which will be the result of the function call::
+
+        @public
+        def orders(self):
+            return [order.name for order in self.order_list]
+
+        @formatter('orders')
+        def format_orders(self, response):
+            return ', '.join(response)
+
+    """
+    def decorator(fxn):
+        """The actual decorator for formatters"""
+        cmds = getattr(fxn, '__format_cmds__', [])
+        cmds.append(cmd)
+        setattr(fxn, '__format_cmds__', cmds)
+        return fxn
+    return decorator
+
 def public(fxn):
     """
     Decorator for methods on server that are callable from clients
@@ -161,47 +195,6 @@ def event_handler(name, priority=100):
         """The actual decorator for event handlers"""
         fxn.__sub_event__ = name
         fxn.__priority__ = priority
-        return fxn
-    return decorator
-
-def formatter(format, cmd):
-    """
-    Decorator for output formatters
-
-    Functions with this decorator will be used to format the output returned by
-    an extension before sending to the client.
-
-    Parameters
-    ----------
-    format : str
-        A format, (ex. 'text' or 'html')
-    cmd : str
-        The command to format (ex. 'pub')
-
-    Notes
-    -----
-    The client sets their desired format via the 'meta' dict. The server will
-    check the 'format' key in the 'meta' dict, and use 'raw' by default if no
-    value is found.
-
-    The function decorated with @formatter should take either one or two
-    arguments. The first is the output from the command that was run. The
-    second, if included in the function definition, will contain the client's
-    meta dict. A quick example::
-
-        @public
-        def orders(self):
-            return [order.name for order in self.order_list]
-
-        @formatter('text', 'orders')
-        def format_orders(self, output):
-            return ', '.join(output)
-
-    """
-    def decorator(fxn):
-        """The actual decorator for formatters"""
-        fxn.__format_type__ = format
-        fxn.__format_cmd__ = cmd
         return fxn
     return decorator
 

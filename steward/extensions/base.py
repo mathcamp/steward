@@ -104,21 +104,29 @@ def sleep(self, t=1):
     time.sleep(float(t))
     return True
 
-@formatter('text', 'tasks.running')
-def format_running(self, output):
+from steward import task
+@task('* * * * *')
+def sleeper(self):
+    self.sleep(70)
+
+@formatter('tasks.running')
+def format_running(self, response):
     """ Format the output of tasks.running """
     lines = []
-    for name, ts in output:
+    now = datetime.now()
+    for name, ts in response:
         dt = datetime.fromtimestamp(ts)
-        lines.append("{}: {}".format(name, dt.isoformat()))
+        delta = now - dt
+        lines.append("{}: {}".format(name, delta))
     return '\n'.join(lines)
 
-@formatter('text', 'tasks.schedule')
-def format_schedule(self, output):
+@formatter('tasks.schedule')
+def format_schedule(self, response):
     """ Format the output of tasks.schedule """
     lines = []
-    for name, sec in output:
-        td = timedelta(sec)
+    now = time.time()
+    for name, sec in response:
+        td = timedelta(seconds=sec)
         lines.append("{}: -{}".format(name, td))
     return '\n'.join(lines)
 
@@ -192,21 +200,21 @@ def _fxn_signature(cmd, *args, **kwargs):
         arglist += ', ' + kwarglist
     return cmd + '(' + arglist + ')'
 
-@formatter('text', 'status')
-def format_status(self, output):
-    """ Format the output of status """
+@formatter('status')
+def format_status(self, response):
+    """ Format the response of status """
     lines = ['Commands', '--------']
-    for fxn, seconds in output['commands']:
+    for fxn, seconds in response['commands']:
         lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
     lines.append('')
     lines.append('Background')
     lines.append('----------')
-    for fxn, seconds in output['background']:
+    for fxn, seconds in response['background']:
         lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
     lines.append('')
     lines.append('Tasks')
     lines.append('-----')
-    for fxn, seconds in output['tasks']:
+    for fxn, seconds in response['tasks']:
         lines.append("{}  {}".format(timedelta(seconds=seconds), fxn))
     return '\n'.join(lines)
 

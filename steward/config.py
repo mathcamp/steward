@@ -187,7 +187,8 @@ def load_extensions(config, is_server):
             config['pkg_extensions'])
     else:
         ext = _load_extensions(config['client_extensions'])
-        ext += _load_pkg_extensions(config['client_pkg_extensions'])
+        ext += _load_pkg_extensions(BASE_PKG_EXTENSIONS +
+            config['client_pkg_extensions'])
     return ext
 
 class CMDLineOptionsParserMixin(object):

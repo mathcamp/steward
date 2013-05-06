@@ -17,7 +17,6 @@ import threading
 import signal
 import time
 from datetime import datetime
-from collections import defaultdict
 from multiprocessing.pool import ThreadPool
 from multiprocessing.queues import Empty
 from multiprocessing import Queue
@@ -63,7 +62,6 @@ class Server(threading.Thread):
         self.tasklist = tasks.TaskList()
         self.pool = None
         self._start_methods = []
-        self._formatters = defaultdict(dict)
         self._apply_extensions(conf['extension_mods'])
         self._queue = None
         self._active_commands = []
@@ -128,26 +126,6 @@ class Server(threading.Thread):
         cur = threading.current_thread()
         return getattr(cur, '_nonce')
 
-    def get_formatter(self, command, format):
-        """
-        Get a specific formatter
-
-        Parameters
-        ----------
-        command : str
-            The command to format
-        format : str
-            The format to use
-
-        Returns
-        -------
-        formatter : callable
-            Takes two arguments, the server and the output. May be None if no
-            formatter is found.
-
-        """
-        return self._formatters.get(format, {}).get(command)
-
     def handle_message(self, uid, msg):
         """
         Handle a client message and return a response
@@ -172,11 +150,6 @@ class Server(threading.Thread):
             
             if getattr(method, '__public__', False):
                 value = method(*msg.get('args', []), **msg.get('kwargs', {}))
-
-                format = self.client.get('format', 'raw')
-                formatter = self.get_formatter(command, format)
-                if formatter is not None:
-                    value = formatter(self, value)
 
                 retval = {
                     'type':'response',
@@ -411,9 +384,6 @@ class Server(threading.Thread):
                 elif hasattr(member, '__sub_event__'):
                     self.event_handlers.append(
                         (re.compile(member.__sub_event__), member))
-                elif hasattr(member, '__format_type__'):
-                    self._formatters[member.__format_type__]\
-                        [member.__format_cmd__] = member
                 elif hasattr(member, '__public__'):
                     name = name.lower()
                     if hasattr(self, name):

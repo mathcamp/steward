@@ -194,8 +194,10 @@ class TaskList(Thread):
         """Run a task"""
         task_key = (task_to_run, datetime.now())
         self.running_tasks.append(task_key)
-        task_to_run()
-        self.running_tasks.remove(task_key)
+        try:
+            task_to_run()
+        finally:
+            self.running_tasks.remove(task_key)
         
     def run(self):
         """Start running the scheduled tasks"""

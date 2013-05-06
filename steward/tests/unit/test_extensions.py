@@ -9,31 +9,11 @@ Test the server extension loading
 """
 import sys
 from steward import tests
-from steward.util import public, private, formatter
+from steward.util import public, private
 
 def unlisted_ping(self):
     """server extension with no decorator"""
     return 'pong'
-
-@formatter('text', 'formatme')
-def format_ping(self, output):
-    """ Output formatter """
-    return 'text'
-
-@formatter('raw', 'formatme')
-def raw_formatme(self, output):
-    """ Output formatter """
-    return 'raw'
-
-@formatter('server', 'formatme')
-def echo_server(self, output):
-    """ Return the server object """
-    return self
-
-@public
-def formatme(self):
-    """ Dummy call """
-    return
 
 @public
 def echo_meta(self):
@@ -137,20 +117,3 @@ class TestDecorators(tests.BaseTest):
         """ Public methods in private namespaces should be callable"""
         retval = self.call_server('privatefoo.ping')
         self.assert_result_equal(retval, 'pong')
-
-    def test_default_raw_format(self):
-        """ If no format specified, the 'raw' format is used """
-        retval = self.call_server('formatme')
-        self.assert_result_equal(retval, 'raw')
-
-    def test_formatter(self):
-        """ The output formatter that matches the 'meta' dict formats the output """
-        self.meta['format'] = 'text'
-        retval = self.call_server('formatme')
-        self.assert_result_equal(retval, 'text')
-
-    def test_extension_access_server(self):
-        """ Extension have access to the server """
-        self.meta['format'] = 'server'
-        retval = self.call_server('formatme')
-        self.assert_result_equal(retval, self.server)

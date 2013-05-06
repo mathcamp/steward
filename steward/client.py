@@ -81,24 +81,6 @@ class Client(object):
         self._nonce += 1
         return self._nonce - 1
 
-    @property
-    def format(self):
-        """ Get the data format that the server will be returning """
-        return self.meta.get('format', 'raw')
-
-    @format.setter
-    def format(self, format):
-        """
-        Set the return format for the server to use
-
-        Parameters
-        ----------
-        format : str
-            Usually one of 'text', 'html', or 'raw' (the default)
-
-        """
-        self.meta['format'] = format
-
     def _create_substream(self):
         """
         Create the subscription stream
@@ -276,6 +258,7 @@ class StewardREPL(cmd.Cmd):
     aliases = {}
     running = False
     subscriptions = set()
+    _formatters = {}
     def start(self, conf):
         """
         Start running the interactive session (blocking)
@@ -290,7 +273,6 @@ class StewardREPL(cmd.Cmd):
         self.prompt = conf['prompt']
         self.client = Client(conf)
         self.client.partial_callback = self.on_partial
-        self.client.format = 'text'
         self.client.meta.update(conf['meta'])
         self.client.sub_callback = self._sub_callback
         self.aliases = {}
@@ -341,9 +323,15 @@ class StewardREPL(cmd.Cmd):
                     if isinstance(ext_name, basestring):
                         name = ext_name
                     setattr(self, 'do_' + name, bound_method)
+                elif hasattr(member, '__format_cmds__'):
+                    for format_cmd in member.__format_cmds__:
+                        self._formatters[format_cmd] = member
 
         for method in on_start_methods:
-            method(self)
+            try:
+                method(self)
+            except:
+                LOG.exception("Error running start method")
 
     def help_help(self):
         """Print the help text for help"""
@@ -553,6 +541,8 @@ class StewardREPL(cmd.Cmd):
         elif retval['type'] == 'response':
             if retval['response'] is None:
                 pass
+            elif command in self._formatters:
+                print self._formatters[command](self, retval['response'])
             elif isinstance(retval['response'], basestring):
                 print retval['response']
             else:
