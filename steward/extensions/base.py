@@ -104,11 +104,6 @@ def sleep(self, t=1):
     time.sleep(float(t))
     return True
 
-from steward import task
-@task('* * * * *')
-def sleeper(self):
-    self.sleep(70)
-
 @formatter('tasks.running')
 def format_running(self, response):
     """ Format the output of tasks.running """
