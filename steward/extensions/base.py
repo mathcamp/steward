@@ -232,7 +232,8 @@ def status(self):
     retval['background'] = []
     for date, cmd, args, kwargs in self._background_cmds:
         delta = now - date
-        msg_call = _fxn_signature(cmd.__name__, *args, **kwargs)
+        cmd_name = getattr(cmd, '__name__', cmd.__class__.__name__)
+        msg_call = _fxn_signature(cmd_name, *args, **kwargs)
         retval['background'].append((msg_call, delta.total_seconds()))
 
     retval['tasks'] = []
