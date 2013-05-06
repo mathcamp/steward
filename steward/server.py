@@ -238,9 +238,11 @@ class Server(threading.Thread):
             Human-readable description about this partial reply (default '')
 
         """
+        uid = self.uid
+        if uid is None:
+            return
         # If the client has made another request since we started running
         # this one, don't try to send the response to that client
-        uid = self.uid
         if self._client_cmds[uid] != threading.current_thread():
             uid = None
         retval = {
