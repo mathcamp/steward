@@ -21,6 +21,7 @@ import pprint
 import logging
 import shlex
 import json
+import uuid
 from . import config
 from . import util
 
@@ -74,12 +75,6 @@ class Client(object):
         self._substream = None
         self.open = True
         self.partial_callback = None
-        self._nonce = 0
-
-    def _create_nonce(self):
-        """ Construct a nonce """
-        self._nonce += 1
-        return self._nonce - 1
 
     def _create_substream(self):
         """
@@ -141,12 +136,12 @@ class Client(object):
             The dictionary response from the server
 
         """
-        nonce = self._create_nonce()
+        uid = uuid.uuid4().hex
         self._stream.send({'cmd':command, 'args':args, 'kwargs':kwargs,
-            'meta':self.meta, 'nonce':nonce})
+            'meta':self.meta, 'uid':uid})
         while True:
             resp = self._stream.recv()
-            if resp['nonce'] != nonce:
+            if resp['uid'] != uid:
                 continue
             if resp['type'] == 'partial':
                 if self.partial_callback is not None:

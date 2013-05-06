@@ -109,13 +109,13 @@ class Server(threading.Thread):
         return getattr(cur, '_client_meta', {})
 
     @property
-    def nonce(self):
+    def req_uid(self):
         """
-        The nonce of the current request
+        The uid of the current request
 
         Returns
         -------
-        nonce : int
+        uid : str
 
         Notes
         -----
@@ -124,7 +124,7 @@ class Server(threading.Thread):
 
         """
         cur = threading.current_thread()
-        return getattr(cur, '_nonce')
+        return getattr(cur, '_req_uid')
 
     def handle_message(self, uid, msg):
         """
@@ -141,7 +141,7 @@ class Server(threading.Thread):
         try:
             setattr(cur, '_uid', uid)
             setattr(cur, '_client_meta', msg.get('meta', {}))
-            setattr(cur, '_nonce', msg['nonce'])
+            setattr(cur, '_req_uid', msg['uid'])
 
             attr_list = command.split('.')
             method = self
@@ -154,7 +154,7 @@ class Server(threading.Thread):
                 retval = {
                     'type':'response',
                     'response':value,
-                    'nonce':msg['nonce'],
+                    'uid':msg['uid'],
                 }
             else:
                 raise AttributeError('{} is not public!'.format(command))
@@ -163,12 +163,12 @@ class Server(threading.Thread):
             retval = {
                 'type':'error',
                 'error':traceback.format_exc(),
-                'nonce':msg['nonce'],
+                'uid':msg['uid'],
             }
         finally:
             delattr(cur, '_uid')
             delattr(cur, '_client_meta')
-            delattr(cur, '_nonce')
+            delattr(cur, '_req_uid')
             return retval #pylint: disable=W0150
 
     def publish(self, name, data=None):
@@ -244,7 +244,7 @@ class Server(threading.Thread):
             'type':'partial',
             'partial':msg_type,
             'desc':desc,
-            'nonce':self.nonce,
+            'uid':self.uid,
         }
         self._queue.put((uid, retval))
 

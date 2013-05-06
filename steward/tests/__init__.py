@@ -27,7 +27,7 @@ class BaseTest(unittest.TestCase):
 
         """
         msg = {'cmd':cmd, 'args':args, 'kwargs':kwargs, 'meta':self.meta,
-            'nonce':1}
+            'uid':'a'}
         return self.server.handle_message('test', msg)
 
     def assert_result_equal(self, first, second, msg=None):
