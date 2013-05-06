@@ -308,6 +308,7 @@ class Server(threading.Thread):
             self.running = True
             self.starting = False
             LOG.info("Started")
+            self.publish('startup')
             try:
                 while self.running:
                     try:
@@ -324,6 +325,7 @@ class Server(threading.Thread):
                 self.stop()
 
             LOG.info("Shutting down")
+            self.publish('shutdown')
             while self._active_commands or self._background_cmds:
                 if self._active_commands:
                     LOG.info("Waiting for active commands: %s",
