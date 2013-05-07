@@ -23,6 +23,7 @@ DATA = {
         'pyzmq',
         'PyYAML',
         'croniter',
+        'pexpect',
     },
     'tests_require': {
         'mock',
