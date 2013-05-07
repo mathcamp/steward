@@ -537,7 +537,11 @@ class StewardREPL(cmd.Cmd):
             if retval['response'] is None:
                 pass
             elif command in self._formatters:
-                print self._formatters[command](self, retval['response'])
+                try:
+                    print self._formatters[command](self, retval['response'])
+                except:
+                    traceback.print_exc()
+                    pprint.pprint(retval['response'])
             elif isinstance(retval['response'], basestring):
                 print retval['response']
             else:
