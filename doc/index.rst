@@ -5,7 +5,7 @@ Steward
     :maxdepth: 3
     :glob:
 
-    README
+    steward
 
     ref/steward
 
