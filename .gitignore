@@ -7,3 +7,4 @@ doc/steward.rst
 *.egg-info
 dist
 __version__.py
+.ropeproject

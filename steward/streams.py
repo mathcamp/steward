@@ -69,7 +69,7 @@ class BaseStream(object):
     ----------
     socket : :py:class:`zmq.Socket`
         The socket to use for communication
-    
+
     Notes
     -----
     We have to construct the zeromq frames ourselves, since we want more
@@ -214,7 +214,7 @@ class BaseStream(object):
                     if (datetime.now() - start).total_seconds() > timeout:
                         raise
                 time.sleep(0.1)
-                    
+
         return self._translate_msg(msg)
 
     def send(self, *args):

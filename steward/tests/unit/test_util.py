@@ -12,9 +12,6 @@ from mock import MagicMock
 from threading import RLock
 from steward import util
 
-class ExpectedException(Exception):
-    """Exception that we expect to see raised"""
-
 class TestUtil(unittest.TestCase):
     """Test methods in :py:mod:`steward.util`"""
 

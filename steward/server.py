@@ -16,6 +16,7 @@ import zmq
 import threading
 import signal
 import time
+import cPickle
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
 from multiprocessing.queues import Empty
@@ -147,7 +148,7 @@ class Server(threading.Thread):
             method = self
             for attr in attr_list:
                 method = getattr(method, attr)
-            
+
             if getattr(method, '__public__', False):
                 value = method(*msg.get('args', []), **msg.get('kwargs', {}))
 
@@ -159,7 +160,7 @@ class Server(threading.Thread):
             else:
                 raise AttributeError('{} is not public!'.format(command))
         except Exception as e:
-            LOG.exception("Error running %s" % command)
+            LOG.exception("Error running %s", command)
             retval = {
                 'type':'error',
                 'error':traceback.format_exc(),
@@ -224,7 +225,7 @@ class Server(threading.Thread):
         # this one, don't try to send the response to that client
         if self._client_cmds[uid] != threading.current_thread():
             uid = None
-        self._queue.put((uid, retval))
+        self.send(uid, retval)
 
     def partial(self, msg_type, desc=''):
         """
@@ -251,13 +252,37 @@ class Server(threading.Thread):
             'desc':desc,
             'uid':self.req_uid,
         }
-        self._queue.put((uid, retval))
+        self.send(uid, retval)
+
+    def send(self, uid, response):
+        """
+        Send a response to a client
+
+        Parameters
+        ----------
+        uid : str
+            UID of the client
+        response : dict
+            Response containing any pickleable object
+
+        """
+        try:
+            # Attempt to pickle the value ourselves because queue.put doesn't
+            # raise an exception when it fails
+            cPickle.dumps(response)
+            self._queue.put((uid, response))
+        except (cPickle.PicklingError, cPickle.PickleError, TypeError):
+            LOG.exception("Error putting response in queue")
+            del response[response['type']]
+            response['type'] = 'error'
+            response['error'] = traceback.format_exc()
+            self._queue.put((uid, response))
 
     def start(self):
         # we have to create the thread pool from the Main thread
         self.pool = ThreadPool(processes=self.conf['worker_threads'])
         super(Server, self).start()
-    
+
     def initialize_streams(self):
         """Initialize the zmq streams"""
         if self._stream is None:
@@ -317,7 +342,7 @@ class Server(threading.Thread):
                         uid = 's'
                         msg = {}
                         uid, msg = self._stream.recv(timeout=0.1)
-                        LOG.info("Got client command: %s" % msg)
+                        LOG.info("Got client command: %s", msg)
                         self.pool.apply_async(self._handle_async, (uid, msg))
                     except zmq.ZMQError:
                         pass
