@@ -29,10 +29,10 @@ DATA = {
     },
     'tests_require':[
         'coverage',
+        'mock',
     ],
     'setup_requires':[
         'nose>=1.0',
-        'mock',
     ],
 }
 
