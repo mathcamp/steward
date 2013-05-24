@@ -10,6 +10,8 @@ DATA = {
     'author_email': 'steven@highlig.ht',
     'url': 'http://highlig.ht',
     'packages': find_packages(exclude=['*.tests*']),
+    'zip_safe':False,
+    'test_suite':'nose.collector',
     'entry_points': {
         'console_scripts': [
             'steward-server = steward.scripts:start_server',
@@ -25,10 +27,13 @@ DATA = {
         'croniter',
         'pexpect',
     },
-    'tests_require': {
+    'tests_require':[
+        'coverage',
+    ],
+    'setup_requires':[
+        'nose>=1.0',
         'mock',
-        'nose',
-    },
+    ],
 }
 
 DIRNAME = os.path.dirname(__file__)

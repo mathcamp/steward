@@ -16,11 +16,11 @@ import pickle
 import logging
 from abc import ABCMeta, abstractmethod
 try:
-    import simplejson as json
+    import simplejson as json # pylint: disable=F0401
 except ImportError:
     import json
 try:
-    import msgpack
+    import msgpack # pylint: disable=F0401
 except ImportError:
     pass
 from . import util
