@@ -1,0 +1,6 @@
+TODO
+====
+* finish README
+* sphinx docs
+* Salt passwords
+* Websockets for events
