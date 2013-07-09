@@ -168,7 +168,7 @@ def includeme(config):
                     renderer='json', permission=NO_PERMISSION_REQUIRED)
     config.add_view('steward.views.bad_request', context=HTTPBadRequest,
             renderer='json', permission=NO_PERMISSION_REQUIRED)
-    config.add_view('steward.views.server_error', context=HTTPServerError,
+    config.add_view('steward.views.server_error', context=Exception,
             renderer='json', permission=NO_PERMISSION_REQUIRED)
 
 def main(global_config, **settings):

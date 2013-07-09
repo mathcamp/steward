@@ -1,5 +1,6 @@
 """ Steward's default endpoints """
 import logging
+import traceback
 from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.security import remember
 
@@ -23,4 +24,7 @@ def bad_request(context, request):
 def server_error(context, request):
     """ Return 500's with a bit more context for the client """
     request.response.status_code = 500
-    return {'detail': context.detail}
+    if hasattr(context, 'detail'):
+        return {'detail': context.detail}
+    else:
+        return {'detail': traceback.format_exc(context)}
