@@ -144,7 +144,9 @@ def _bg_req(request, route_name, **kwargs):
     uri = request.route_path(route_name)
     local_addr = request.registry.settings['steward.address']
     kwargs = _argify_kwargs(request, kwargs)
-    cookies = request.cookies
+    # We have to convert these into a dict because after the request ends the
+    # cookies are no longer accessible
+    cookies = dict(request.cookies)
     def do_bg_req():
         """ Do a request in the background and raise any exceptions """
         response = requests.post(local_addr + uri, cookies=cookies, data=kwargs)
