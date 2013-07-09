@@ -97,6 +97,14 @@ def _post(config, uri, **kwargs):
     kwargs['cookies'] = cookies
     return requests.post(local_addr + uri, **kwargs)
 
+def _argify_kwargs(request, kwargs):
+    """ Serialize keyword arguments for making an internal request """
+    for key, value in kwargs.items():
+        if type(value) not in (int, float, bool, str, unicode):
+            kwargs[key] = pyramid.renderers.render('json', value,
+                                                   request=request)
+    return kwargs
+
 def _subreq(request, route_name, **kwargs):
     """
     Convenience method for doing internal subrequests
@@ -111,15 +119,33 @@ def _subreq(request, route_name, **kwargs):
     """
     req = Request.blank(request.route_path(route_name))
     req.method = 'POST'
-    for key, value in kwargs.items():
-        if type(value) not in (int, float, bool, str, unicode):
-            kwargs[key] = pyramid.renderers.render('json', value,
-                                                   request=request)
+    kwargs = _argify_kwargs(request, kwargs)
     req.body = urlencode(kwargs)
     req.cookies = request.cookies
     response = request.invoke_subrequest(req)
     if response.body:
         return json.loads(response.body)
+
+def _bg_req(request, route_name, **kwargs):
+    """
+    Convenience method for doing internal subrequests
+
+    Parameters
+    ----------
+    route_name : str
+        The route name for the endpoint to hit
+    cookies : dict
+        The cookie dict
+    **kwargs : dict
+        The parameters to pass through in the request
+
+    """
+    uri = request.route_path(route_name)
+    local_addr = request.registry.settings['steward.address']
+    kwargs = _argify_kwargs(request, kwargs)
+    cookies = request.cookies
+    request.background_task(requests.post, local_addr + uri, cookies=cookies,
+                         data=kwargs)
 
 def _run_in_bg(command, *args, **kwargs):
     """Run a command and log any exceptions"""
@@ -161,6 +187,7 @@ def includeme(config):
     config.add_acl_from_settings('steward')
     config.add_request_method(_param, name='param')
     config.add_request_method(_subreq, name='subreq')
+    config.add_request_method(_bg_req, name='bg_request')
     config.add_request_method(_run_background_task, name='background_task')
 
     config.add_route('auth', '/auth')
