@@ -24,6 +24,7 @@ def bad_request(context, request):
 def server_error(context, request):
     """ Return 500's with a bit more context for the client """
     request.response.status_code = 500
+    LOG.error("Server error:\n%s", traceback.format_exc(context))
     if hasattr(context, 'detail'):
         return {'detail': context.detail}
     else:
