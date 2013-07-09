@@ -7,7 +7,8 @@ import pyramid.renderers
 import requests
 import threading
 from pyramid.config import Configurator
-from pyramid.httpexceptions import HTTPBadRequest, HTTPServerError
+from pyramid.httpexceptions import (HTTPBadRequest, HTTPServerError,
+                                    exception_response)
 from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
 from urllib import urlencode
@@ -144,8 +145,19 @@ def _bg_req(request, route_name, **kwargs):
     local_addr = request.registry.settings['steward.address']
     kwargs = _argify_kwargs(request, kwargs)
     cookies = request.cookies
-    request.background_task(requests.post, local_addr + uri, cookies=cookies,
-                         data=kwargs)
+    def do_bg_req():
+        """ Do a request in the background and raise any exceptions """
+        response = requests.post(local_addr + uri, cookies=cookies, data=kwargs)
+        if not response.status_code == 200:
+            try:
+                data = response.json()
+            except:
+                data = None
+            kw = {}
+            if data is not None:
+                kw['detail'] = data['detail']
+            raise exception_response(response.status_code, **kw)
+    request.background_task(do_bg_req)
 
 def _run_in_bg(command, *args, **kwargs):
     """Run a command and log any exceptions"""
