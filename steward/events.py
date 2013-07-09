@@ -31,6 +31,22 @@ def publish(request):
                 LOG.exception("Error running event handler!")
     return request.response
 
+def event_handlers(request):
+    """ Return a list of all event handlers """
+    handlers = []
+    for handler in request.registry.event_handlers:
+        handlers.append({'pattern':handler['pattern'].pattern,
+                         'name':handler['callback'].__name__})
+    return handlers
+
+def do_event_handlers(client):
+    """ Print all event handlers """
+    response = client.cmd('event_handlers').json()
+    longest = max([len(handler['pattern']) for handler in response])
+    for handler in response:
+        print '{}: {}'.format(handler['pattern'].ljust(longest),
+                              handler['name'])
+
 def pub(client, name, **data):
     """
     Publish an event, optionally with some data
@@ -79,6 +95,7 @@ def _add_event_handler(config, pattern, callback, priority=100,
 def include_client(client):
     """ Add event commands to client """
     client.set_cmd('pub', pub)
+    client.set_cmd('event_handlers', do_event_handlers)
 
 def includeme(config):
     """ Configure the app """
@@ -86,4 +103,6 @@ def includeme(config):
     config.add_directive('add_event_handler', _add_event_handler)
 
     config.add_route('pub', '/pub')
+    config.add_route('event_handlers', '/event_handlers')
     config.add_view(publish, route_name='pub')
+    config.add_view(event_handlers, route_name='event_handlers', renderer='json')
