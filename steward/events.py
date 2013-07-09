@@ -1,4 +1,5 @@
 """ Steward bus for publishing/subscribing to events """
+import json
 import re
 
 import logging
@@ -59,7 +60,7 @@ def pub(client, name, **kw):
         The data payload for the event
 
     """
-    client.cmd('pub', name=name, data=kw)
+    client.cmd('pub', name=name, data=json.dumps(kw))
 
 def _add_event_handler(config, pattern, callback, priority=100,
                        permission='default'):
