@@ -1,9 +1,10 @@
 """ Command line client for Steward """
 import types
-import getpass
 
 import functools
+import getpass
 import inspect
+import json
 import logging
 import requests
 import shlex
@@ -239,6 +240,9 @@ class StewardREPL(Cmd):
         if not uri.startswith('/'):
             uri = '/' + uri
         url = self.host + uri
+        for key, value in kwargs.items():
+            if type(value) not in (int, float, bool, str, unicode):
+                kwargs[key] = json.dumps(value)
         response = requests.post(url, data=kwargs, cookies=self.cookies,
                                  **self.request_params)
         if not response.ok:
