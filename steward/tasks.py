@@ -4,7 +4,6 @@ from datetime import timedelta, datetime
 
 import logging
 from croniter import croniter
-from multiprocessing.pool import ThreadPool
 from threading import Thread
 
 
@@ -144,7 +143,6 @@ class TaskList(Thread):
     """
     def __init__(self, threads=None):
         super(TaskList, self).__init__()
-        self.pool = ThreadPool(threads)
         self.daemon = True
         self.tasks = []
         self.running_tasks = []
@@ -191,7 +189,9 @@ class TaskList(Thread):
                 self.tasks.pop(0)
 
             self.tasks.sort(key=lambda x:x.next_exec)
-            self.pool.apply_async(lambda:self._run_task(cur_task))
+            thread = Thread(target=lambda:self._run_task(cur_task))
+            thread.daemon = True
+            thread.start()
 
     def stop(self):
         """Stop running the tasklist"""
