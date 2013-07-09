@@ -153,11 +153,11 @@ def _run_background_task(request, command, *args, **kwargs):
 def includeme(config):
     """ Configure the app """
     config.add_directive('post', _post)
-    config.include('steward.base')
     config.include('steward.auth')
     config.include('steward.locks')
     config.include('steward.events')
     config.include('steward.tasks')
+    config.include('steward.base')
     config.add_acl_from_settings('steward')
     config.add_request_method(_param, name='param')
     config.add_request_method(_subreq, name='subreq')

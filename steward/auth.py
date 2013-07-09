@@ -269,9 +269,9 @@ def _add_acl_from_settings(config, prefix):
         if tail.startswith('.'):
             tail = tail[1:]
         components = tail.split('.')
-        if len(components) < 2 or components[1] != 'perm':
+        if len(components) != 2 or components[0] != 'perm':
             continue
-        permission = components[2]
+        permission = components[1]
         for principle in aslist(value):
             if principle.lower() == 'authenticated':
                 principle = Authenticated
