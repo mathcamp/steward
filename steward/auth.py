@@ -4,7 +4,7 @@ from base64 import b64encode
 from uuid import uuid4
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.security import (Allow, Deny, Everyone, Authenticated,
-                              ALL_PERMISSIONS)
+                              ALL_PERMISSIONS, unauthenticated_userid)
 from pyramid.settings import aslist, asbool
 
 def asint(setting):
@@ -323,3 +323,5 @@ def includeme(config):
     config.add_authentication_policy(InternalAdminAuthPolicy(
         config.registry.secret_auth_token))
     config.set_default_permission('default')
+
+    config.add_request_method(unauthenticated_userid, name='userid', reify=True)
