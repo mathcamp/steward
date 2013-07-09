@@ -158,6 +158,7 @@ def _bg_req(request, route_name, **kwargs):
             kw = {}
             if data is not None:
                 kw['detail'] = data['detail']
+            LOG.error("Error doing request '%s' in background", uri)
             raise exception_response(response.status_code, **kw)
     request.background_task(do_bg_req)
 
