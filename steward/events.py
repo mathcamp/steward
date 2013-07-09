@@ -47,7 +47,7 @@ def do_event_handlers(client):
         print '{}: {}'.format(handler['pattern'].ljust(longest),
                               handler['name'])
 
-def pub(client, name, **data):
+def pub(client, name, **kw):
     """
     Publish an event, optionally with some data
 
@@ -55,11 +55,11 @@ def pub(client, name, **data):
     ----------
     name : str
         The name of the event
-    data : dict
+    kw : dict
         The data payload for the event
 
     """
-    client.cmd('pub', name=name, data=data)
+    client.cmd('pub', name=name, data=kw)
 
 def _add_event_handler(config, pattern, callback, priority=100,
                        permission='default'):
