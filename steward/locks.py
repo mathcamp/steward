@@ -1,4 +1,5 @@
 """ Tools for synchronizing requests and blocks """
+import inspect
 from multiprocessing import RLock
 from pyramid.path import DottedNameResolver
 import contextlib
@@ -19,8 +20,12 @@ def lock(key, *l_args, **l_kwargs):
             else:
                 raise TypeError("Locked method %s has more than 3 args!" %
                                 fxn.__name__)
+            argspec = inspect.getargspec(fxn)
             with request.registry.lock_factory(key, *l_args, **l_kwargs):
-                return fxn(*args)
+                if len(argspec.args) == 1:
+                    return fxn(request)
+                else:
+                    return fxn(*args)
         return wrapped
     return wrapper
 
