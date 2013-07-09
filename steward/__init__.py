@@ -118,7 +118,8 @@ def _subreq(request, route_name, **kwargs):
     req.body = urlencode(kwargs)
     req.cookies = request.cookies
     response = request.invoke_subrequest(req)
-    return json.loads(response.body)
+    if response.body:
+        return json.loads(response.body)
 
 def _run_in_bg(command, *args, **kwargs):
     """Run a command and log any exceptions"""
