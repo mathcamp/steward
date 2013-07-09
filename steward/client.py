@@ -63,6 +63,7 @@ class StewardREPL(Cmd):
     cookies = None
     name_resolver = DottedNameResolver(__package__)
     prompt = '==> '
+    request_params = {}
     def start(self, conf):
         """
         Start running the interactive session (blocking)
@@ -75,6 +76,7 @@ class StewardREPL(Cmd):
         """
         self.identchars += '.'
         self.host = conf['host']
+        self.request_params = conf.get('request_params', {})
         if 'prompt' in conf:
             self.prompt = conf['prompt']
         self.aliases = {}
@@ -108,7 +110,7 @@ class StewardREPL(Cmd):
             'password': password,
         }
         response = requests.post(self.host + '/auth', data=data,
-                allow_redirects=False)
+                allow_redirects=False, **self.request_params)
         if response.ok:
             self.cookies = response.cookies
         else:
@@ -237,7 +239,8 @@ class StewardREPL(Cmd):
         if not uri.startswith('/'):
             uri = '/' + uri
         url = self.host + uri
-        response = requests.post(url, data=kwargs, cookies=self.cookies)
+        response = requests.post(url, data=kwargs, cookies=self.cookies,
+                                 **self.request_params)
         if not response.ok:
             try:
                 data = response.json()
