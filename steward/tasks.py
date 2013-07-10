@@ -1,37 +1,13 @@
-"""
-.. module:: tasks
-   :synopsis: Periodic tasks that get run on the server
+""" Extension for running scheduled tasks """
+import time
+from datetime import timedelta, datetime
 
-.. moduleauthor:: Steven Arcangeli <steven@highlig.ht>
-
-Periodic tasks that get run on the server
-
-"""
 import logging
 from croniter import croniter
-from datetime import datetime
 from threading import Thread
-import time
+
 
 LOG = logging.getLogger(__name__)
-
-def task(*args, **kwargs):
-    """
-    Convenience decorator for creating a :py:class:`~steward.tasks.Task`
-
-    This allows you to create tasks inside of a server extension module like
-    so::
-
-        @task('*/5 * * * *')
-        def spam_clients(self):
-            self.publish('spam', 'spamspamspamspam')
-            
-    
-    """
-    def decorator(fxn):
-        """The decorator for the task function"""
-        return Task(fxn, *args, **kwargs)
-    return decorator
 
 class Task(object):
     """
@@ -53,7 +29,7 @@ class Task(object):
     Notes
     -----
     There are several ways to specify the schedule for the task to be run on. It accepts standard cron format::
-        
+
         mytask = Task(do_something, '*/15 1-6,4-8 * * *')
 
     You can pass the cron args in as separate args::
@@ -120,7 +96,7 @@ class Task(object):
         else:
             raise TypeError("Task arguments invalid! "
                 "{} {}".format(args, kwargs))
-            
+
         if cron:
             self._calc_next_exec = lambda: cron.get_next(datetime)
 
@@ -148,16 +124,13 @@ class Task(object):
         except Exception as e:
             LOG.error("Error running %s", self.name)
             LOG.exception(e)
-    
+
 class TaskList(Thread):
     """
     Container that runs schedule tasks
 
     Attributes
     ----------
-    pool : :py:class:`multiprocessing.pool.ThreadPool`
-        The pool to use to run tasks in the background. You must set
-        this before calling ``start()``
     tasks : list
         List of :py:class:`~steward.tasks.Task`s
     running_tasks : list
@@ -168,9 +141,8 @@ class TaskList(Thread):
         True if the tasklist is running
 
     """
-    def __init__(self):
+    def __init__(self, threads=None):
         super(TaskList, self).__init__()
-        self.pool = None
         self.daemon = True
         self.tasks = []
         self.running_tasks = []
@@ -178,8 +150,7 @@ class TaskList(Thread):
 
     def add(self, new_task):
         """
-        Add a task to the TaskList. This may be called before or after
-        :py:meth:`~steward.tasks.TaskList.start`.
+        Add a task to the TaskList
 
         Parameters
         ----------
@@ -198,7 +169,7 @@ class TaskList(Thread):
             task_to_run()
         finally:
             self.running_tasks.remove(task_key)
-        
+
     def run(self):
         """Start running the scheduled tasks"""
         while self.running:
@@ -218,8 +189,73 @@ class TaskList(Thread):
                 self.tasks.pop(0)
 
             self.tasks.sort(key=lambda x:x.next_exec)
-            self.pool.apply_async(lambda:self._run_task(cur_task))
+            thread = Thread(target=lambda:self._run_task(cur_task))
+            thread.daemon = True
+            thread.start()
 
     def stop(self):
         """Stop running the tasklist"""
         self.running = False
+
+
+def tasks_running(request):
+    """ Endpoint for retrieving the running tasks """
+    tasks = []
+    for task, dt in request.tasklist.running_tasks:
+        tasks.append((task.name, time.mktime(dt.timetuple())))
+    return tasks
+
+def tasks_schedule(request):
+    """ Endpoint for retrieving the task schedule """
+    now = datetime.now()
+    tasks = []
+    for task in request.tasklist.tasks:
+        tasks.append((task.name, (task.next_exec - now).total_seconds()))
+    return tasks
+
+def do_tasks_running(client):
+    """ Get this list of currently running tasks """
+    response = client.cmd('tasks/running').json()
+    lines = []
+    now = datetime.now()
+    for name, ts in response:
+        dt = datetime.fromtimestamp(ts)
+        delta = now - dt
+        lines.append("{}: {}".format(name, delta))
+    print '\n'.join(lines)
+
+def do_tasks_schedule(client):
+    """ Get the current task schedule """
+    response = client.cmd('tasks/schedule').json()
+    lines = []
+    for name, sec in response:
+        td = timedelta(seconds=sec)
+        lines.append("{}: -{}".format(name, td))
+    print '\n'.join(lines)
+
+def _add_task(config, fxn, *args, **kwargs):
+    """ Config directive for adding a task """
+    config.registry.tasklist.add(Task(fxn, *args, **kwargs))
+
+def _tasklist(request):
+    """ Request method to access the tasklist """
+    return request.registry.tasklist
+
+def include_client(client):
+    """ Set the client commands """
+    client.set_cmd('tasks.running', do_tasks_running)
+    client.set_cmd('tasks.schedule', do_tasks_schedule)
+
+def includeme(config):
+    """ Configure the app """
+    settings = config.get_settings()
+    config.registry.tasklist = TaskList(settings.get('steward.tasks.pool_size'))
+    config.registry.tasklist.start()
+    config.add_directive('add_task', _add_task)
+    config.add_request_method(_tasklist, name='tasklist', reify=True)
+
+    config.add_route('tasks_schedule', '/tasks/schedule')
+    config.add_route('tasks_running', '/tasks/running')
+    config.add_view(tasks_running, route_name='tasks_running', renderer='json')
+    config.add_view(tasks_schedule, route_name='tasks_schedule',
+                    renderer='json')

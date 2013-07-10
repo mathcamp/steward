@@ -1,48 +1,62 @@
-"""Setup file for steward"""
+""" Setup file """
 import os
 import subprocess
 from setuptools import setup, find_packages
 
+
+HERE = os.path.abspath(os.path.dirname(__file__))
+README = open(os.path.join(HERE, 'README.txt')).read()
+CHANGES = open(os.path.join(HERE, 'CHANGES.txt')).read()
+
+REQUIREMENTS = [
+    'pyramid>=1.4',
+    'requests',
+    'PyYAML',
+    'croniter',
+]
+
 DATA = {
     'name': 'steward',
-    'description': 'Watches over your servers',
+    'description': 'Server orchestration framework',
+    'long_description': README + '\n\n' + CHANGES,
+    'classifiers': [
+        'Programming Language :: Python',
+        'Development Status :: 4 - Beta',
+        'Framework :: Pylons',
+        'Intended Audience :: System Administrators',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Topic :: Internet :: WWW/HTTP',
+        'Topic :: System :: Systems Administration',
+
+    ],
+    'license': 'MIT',
     'author': 'Steven Arcangeli',
     'author_email': 'steven@highlig.ht',
-    'url': 'http://highlig.ht',
-    'packages': find_packages(exclude=['*.tests*']),
-    'zip_safe':False,
-    'test_suite':'nose.collector',
-    'entry_points': {
-        'console_scripts': [
-            'steward-server = steward.scripts:start_server',
-            'steward = steward.scripts:client_repl',
-            'steward-call = steward.scripts:client_call',
-            'steward-listen = steward.scripts:client_listen',
-        ]
-    },
-    'install_requires': {
-        'setuptools',
-        'pyzmq',
-        'PyYAML',
-        'croniter',
-        'pexpect',
-    },
-    'tests_require':[
-        'coverage',
-        'mock',
-    ],
-    'setup_requires':[
+    'url': '',
+    'zip_safe': False,
+    'include_package_data': True,
+    'packages': find_packages(),
+    'setup_requires': [
         'nose>=1.0',
     ],
+    'install_requires': REQUIREMENTS,
+    'tests_require': REQUIREMENTS,
+    'entry_points': {
+        'console_scripts': [
+            'steward = steward.client:run_client',
+        ],
+        'paste.app_factory': [
+            'main = steward:main',
+        ],
+    },
+    'paster_plugins': ['pyramid'],
 }
 
-DIRNAME = os.path.dirname(__file__)
-PACKAGE = os.path.join(DIRNAME, DATA['name'])
-VERSION_MODULE = '__version__'
-VERSION_MODULE_PATH = os.path.join(PACKAGE, VERSION_MODULE + ".py")
+VERSION_MODULE = os.path.join(HERE, DATA['name'], '__version__.py')
 
 def _git_describe():
-    """Describe the current revision"""
+    """ Describe the current revision """
     try:
         out = subprocess.check_output(['git', 'describe', '--tags',
             '--dirty', '--match=[0-9]*'])
@@ -53,19 +67,23 @@ def _git_describe():
         raise
 
 def get_version():
-    """Calculate the version, which is the git revision"""
-    if os.path.isdir(os.path.join(DIRNAME, '.git')):
+    """
+    Calculate the version from the git revision, or retrieve it from the
+    auto-generated module
+
+    """
+    if os.path.isdir(os.path.join(HERE, '.git')):
         version = _git_describe()
         # Make sure we write the version number to the file so it gets
         # distributed with the package
-        with open(VERSION_MODULE_PATH, 'w') as version_file:
+        with open(VERSION_MODULE, 'w') as version_file:
             version_file.write('"""This file is auto-generated during the '
                 'package-building process"""\n')
             version_file.write("__version__ = '" + version + "'")
         return version
     else:
         # If we already have a version file, use the version there
-        with open(VERSION_MODULE_PATH, 'r') as version_file:
+        with open(VERSION_MODULE, 'r') as version_file:
             version_line = version_file.readlines()[1]
             version = version_line.split("'")[1]
             return version

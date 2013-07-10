@@ -2,8 +2,6 @@
 *.pyc
 build
 _build
-doc/ref/*
-doc/steward.rst
 *.egg-info
 dist
 __version__.py
