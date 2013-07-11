@@ -1,16 +1,17 @@
 """ Command line client for Steward """
-import types
-
 import functools
 import getpass
 import inspect
 import json
 import logging
-import requests
+import os
 import shlex
 import subprocess
 import traceback
+import types
 from cmd import Cmd
+
+import requests
 from pyramid.httpexceptions import exception_response
 from pyramid.path import DottedNameResolver
 
@@ -285,15 +286,27 @@ class StewardREPL(Cmd):
 def run_client():
     """ Entry point for running the REPL """
     import sys
+    import yaml
     if len(sys.argv) == 1:
-        conf_file = '/etc/steward.yaml'
+        if os.path.exists('/etc/steward'):
+            conf_file = '/etc/steward'
+        elif os.path.exists('/etc/steward.yaml'):
+            conf_file = '/etc/steward.yaml'
+        else:
+            print "Must specify a conf file! /etc/steward.yaml not found"
+            sys.exit(1)
     elif len(sys.argv) == 2:
         conf_file = sys.argv[1]
     else:
         print "Too many arguments!"
         sys.exit(1)
     cli = StewardREPL()
-    import yaml
-    with open(conf_file, 'r') as infile:
-        conf = yaml.load(infile)
+    if os.path.isfile(conf_file):
+        with open(conf_file, 'r') as infile:
+            conf = yaml.load(infile)
+    else:
+        conf = {}
+        for filename in os.listdir(conf_file):
+            with open(os.path.join(conf_file, filename), 'r') as infile:
+                conf.update(yaml.load(infile))
     cli.start(conf)
