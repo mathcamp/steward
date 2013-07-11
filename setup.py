@@ -13,6 +13,7 @@ REQUIREMENTS = [
     'requests',
     'PyYAML',
     'croniter',
+    'passlib',
 ]
 
 DATA = {
@@ -45,6 +46,7 @@ DATA = {
     'entry_points': {
         'console_scripts': [
             'steward = steward.client:run_client',
+            'steward-gen-password = steward.scripts:gen_password',
         ],
         'paste.app_factory': [
             'main = steward:main',

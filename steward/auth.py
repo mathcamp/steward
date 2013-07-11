@@ -1,11 +1,13 @@
 """ Authentication and authorization tools for Steward """
-from pyramid.authentication import AuthTktAuthenticationPolicy
 from base64 import b64encode
-from uuid import uuid4
+from passlib.hash import sha256_crypt # pylint: disable=E0611
+from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.security import (Allow, Deny, Everyone, Authenticated,
                               ALL_PERMISSIONS, unauthenticated_userid)
 from pyramid.settings import aslist, asbool
+from uuid import uuid4
+
 
 def asint(setting):
     """ Convert variable to int, leave None unchanged """
@@ -208,7 +210,7 @@ class SettingsAuthDB(IAuthDB):
 
     def authenticate(self, request, userid, password):
         key = 'steward.auth.{}.pass'.format(userid)
-        return self.settings.get(key) == password
+        return sha256_crypt.verify(password, self.settings.get(key))
 
     def groups(self, userid, request):
         key = 'steward.auth.{}.groups'.format(userid)
@@ -230,7 +232,7 @@ class YamlAuthDB(IAuthDB):
             self.data = yaml.load(infile)
 
     def authenticate(self, request, userid, password):
-        return self.data['users'][userid] == password
+        return sha256_crypt.verify(password, self.data['users'][userid])
 
     def groups(self, user, request):
         return self.data['groups'].get(user)
