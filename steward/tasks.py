@@ -141,7 +141,7 @@ class TaskList(Thread):
         True if the tasklist is running
 
     """
-    def __init__(self, threads=None):
+    def __init__(self):
         super(TaskList, self).__init__()
         self.daemon = True
         self.tasks = []
@@ -248,8 +248,7 @@ def include_client(client):
 
 def includeme(config):
     """ Configure the app """
-    settings = config.get_settings()
-    config.registry.tasklist = TaskList(settings.get('steward.tasks.pool_size'))
+    config.registry.tasklist = TaskList()
     config.registry.tasklist.start()
     config.add_directive('add_task', _add_task)
     config.add_request_method(_tasklist, name='tasklist', reify=True)

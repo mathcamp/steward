@@ -210,11 +210,14 @@ class SettingsAuthDB(IAuthDB):
 
     def authenticate(self, request, userid, password):
         key = 'steward.auth.{}.pass'.format(userid)
-        return sha256_crypt.verify(password, self.settings.get(key))
+        stored_pw = self.settings.get(key)
+        if stored_pw is None:
+            return False
+        return sha256_crypt.verify(password, stored_pw)
 
     def groups(self, userid, request):
         key = 'steward.auth.{}.groups'.format(userid)
-        return aslist(request.registry.settings.get(key))
+        return aslist(request.registry.settings.get(key, []))
 
 class YamlAuthDB(IAuthDB):
     """
@@ -232,7 +235,10 @@ class YamlAuthDB(IAuthDB):
             self.data = yaml.load(infile)
 
     def authenticate(self, request, userid, password):
-        return sha256_crypt.verify(password, self.data['users'][userid])
+        stored_pw = self.data['users'].get(userid)
+        if stored_pw is None:
+            return False
+        return sha256_crypt.verify(password, stored_pw)
 
     def groups(self, user, request):
         return self.data['groups'].get(user)
