@@ -9,6 +9,11 @@ from threading import Thread
 
 LOG = logging.getLogger(__name__)
 
+def _closure(fxn, *args, **kwargs):
+    """ Create a closure for a function """
+    return lambda:fxn(*args, **kwargs)
+
+
 class Task(object):
     """
     A periodic task that is run on the server
@@ -189,7 +194,7 @@ class TaskList(Thread):
                 self.tasks.pop(0)
 
             self.tasks.sort(key=lambda x:x.next_exec)
-            thread = Thread(target=lambda:self._run_task(cur_task))
+            thread = Thread(target=_closure(self._run_task, cur_task))
             thread.daemon = True
             thread.start()
 
