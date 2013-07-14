@@ -1,5 +1,6 @@
 """ Tools for synchronizing requests and blocks """
 import inspect
+import os
 from multiprocessing import RLock
 from pyramid.path import DottedNameResolver
 import contextlib
@@ -29,9 +30,26 @@ def lock(key, *l_args, **l_kwargs):
         return wrapped
     return wrapper
 
+
 def request_lock(request, key, *args, **kwargs):
     """ Request method that accesses locks from a request """
     return request.registry.lock_factory(key, *args, **kwargs)
+
+
+@contextlib.contextmanager
+def noop():
+    """ A no-op lock """
+    yield
+
+
+@contextlib.contextmanager
+def file_lock(filename):
+    """ Acquire a lock on a file using ``flock`` """
+    import fcntl
+    with open(filename, "w") as lockfile:
+        fcntl.flock(lockfile, fcntl.LOCK_EX)
+        yield
+
 
 class ILockFactory(object):
     """
@@ -40,8 +58,16 @@ class ILockFactory(object):
     Extend this class to use a different kind of lock for all of the
     synchronization in Steward.
 
+    Parameters
+    ----------
+    config : :class:`pyramid.config.Configurator`
+        The application's configurator
+
     """
-    def __call__(self, key, *args, **kwargs):
+    def __init__(self, config):
+        self._config = config
+
+    def __call__(self, key, expires=None, timeout=None):
         """
         Create a lock unique to the key
 
@@ -49,42 +75,63 @@ class ILockFactory(object):
         ----------
         key : str
             Unique key to identify the lock to return
-        args : list
-            Positional arguments for custom implementations
-        kwargs : dict
-            Keyword arguments for custom implementations
+        expires : float, optional
+            Maximum amount of time the lock may be held (default infinite)
+        timeout : float, optional
+            Maximum amount of time to wait to acquire the lock before rasing an
+            exception (default infinite)
 
         Notes
         -----
-        The keyword arguments exist to allow certain lock factory
-        implementations to be customized with behaviors like timeouts.
+        Not all ILockFactory implementations will respect the ``expires``
+        and/or ``timeout`` options. Please refer to the implementation for
+        details.
 
         """
         raise NotImplementedError
 
-@contextlib.contextmanager
-def noop():
-    """ A no-op lock """
-    yield
 
 class DummyLockFactory(ILockFactory):
     """ No locking will occur """
     def __call__(self, key, *args, **kwargs):
         return noop()
 
+
 class DefaultLockFactory(ILockFactory):
     """ Generate multiprocessing RLocks """
-    def __init__(self):
+    def __init__(self, config):
+        super(DefaultLockFactory, self).__init__(config)
+        self._lock = RLock()
         self._locks = defaultdict(RLock)
 
     def __call__(self, key, *args, **kwargs):
-        return self._locks[key]
+        with self._lock:
+            return self._locks[key]
+
+
+class FileLockFactory(ILockFactory):
+    """ Generate file-level locks that use ``flock`` """
+    def __init__(self, config):
+        super(FileLockFactory, self).__init__(config)
+        settings = self._config.get_settings()
+        self._lockdir = settings.get('steward.lock_dir',
+                                     '/var/run/steward_locks/')
+        os.makedirs(self._lockdir)
+
+    def __call__(self, key, *args, **kwargs):
+        return file_lock(os.path.join(self._lockdir, key))
+
 
 def includeme(config):
     """ Configure the app """
     name_resolver = DottedNameResolver(__package__)
     settings = config.get_settings()
-    config.registry.lock_factory = name_resolver.resolve(
-        settings.get('steward.lock_factory',
-                     'steward.locks:DefaultLockFactory'))()
+    factory_name = settings.get('steward.lock_factory')
+    if factory_name is None:
+        factory_name = 'steward.locks:DefaultLockFactory'
+    elif factory_name == 'dummy':
+        factory_name = 'steward.locks:DummyLockFactory'
+    elif factory_name == 'file':
+        factory_name = 'steward.locks:FileLockFactory'
+    config.registry.lock_factory = name_resolver.resolve(factory_name)(config)
     config.add_request_method(request_lock, name='lock')
