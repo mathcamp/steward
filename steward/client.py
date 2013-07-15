@@ -76,7 +76,7 @@ class StewardREPL(Cmd):
             Configuration dictionary
 
         """
-        self.identchars += '.'
+        self.identchars += './'
         self.host = conf['host']
         self.request_params = conf.get('request_params', {})
         if 'prompt' in conf:
