@@ -288,12 +288,11 @@ def run_client():
     import sys
     import yaml
     if len(sys.argv) == 1:
-        if os.path.exists('/etc/steward'):
-            conf_file = '/etc/steward'
-        elif os.path.exists('/etc/steward.yaml'):
-            conf_file = '/etc/steward.yaml'
+        if os.path.exists('/etc/steward/client'):
+            conf_file = '/etc/steward/client'
         else:
-            print "Must specify a conf file! /etc/steward.yaml not found"
+            print ("Must specify a conf file or directory! "
+                   "/etc/steward/client/ not found")
             sys.exit(1)
     elif len(sys.argv) == 2:
         conf_file = sys.argv[1]
