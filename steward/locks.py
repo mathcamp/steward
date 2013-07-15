@@ -116,7 +116,8 @@ class FileLockFactory(ILockFactory):
         settings = self._config.get_settings()
         self._lockdir = settings.get('steward.lock_dir',
                                      '/var/run/steward_locks/')
-        os.makedirs(self._lockdir)
+        if not os.path.exists(self._lockdir):
+            os.makedirs(self._lockdir)
 
     def __call__(self, key, *args, **kwargs):
         return file_lock(os.path.join(self._lockdir, key))
