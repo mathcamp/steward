@@ -3,17 +3,18 @@ import datetime
 
 import json
 import logging
-import pyramid.renderers
 import requests
 import threading
 from pyramid.config import Configurator
-from pyramid.httpexceptions import (HTTPBadRequest, HTTPServerError,
-                                    exception_response)
+from pyramid.httpexceptions import HTTPBadRequest, exception_response
+from pyramid.renderers import render
 from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
+from pyramid.settings import asbool
 from urllib import urlencode
 
 from . import locks
+
 
 lock = locks.lock # pylint: disable=C0103
 
@@ -69,9 +70,7 @@ def _param(request, name, default=NO_ARG, type=None):
         elif type is datetime.datetime:
             return datetime.datetime.fromtimestamp(float(arg))
         elif type is bool:
-            return arg.lower() == 'true'
-        elif hasattr(type, '__from_arg__'):
-            return type.__from_arg__(arg)
+            return asbool(arg)
         else:
             return type(arg)
     except:
@@ -102,8 +101,7 @@ def _argify_kwargs(request, kwargs):
     """ Serialize keyword arguments for making an internal request """
     for key, value in kwargs.items():
         if type(value) not in (int, float, bool, str, unicode):
-            kwargs[key] = pyramid.renderers.render('json', value,
-                                                   request=request)
+            kwargs[key] = render('json', value, request=request)
     return kwargs
 
 def _subreq(request, route_name, **kwargs):
