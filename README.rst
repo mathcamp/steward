@@ -8,30 +8,32 @@ build customized behavior.
 
 Configuration
 =============
-steward.auth.enable - bool
-steward.auth.db
-    <blank> - use settings
-    <file.yaml> - Load from yaml file
+TODO::
 
-pyramid.cookie.secret
-pyramid.cookie.name
-pyramid.cookie.secure
-pyramid.cookie.timeout
-pyramid.cookie.reissue_time
-pyramid.cookie.max_age
-pyramid.cookie.path
-pyramid.cookie.httponly
-pyramid.cookie.wild_domain
-pyramid.cookie.hashalg
-pyramid.cookie.debug
+    steward.auth.enable - bool
+    steward.auth.db
+        <blank> - use settings
+        <file.yaml> - Load from yaml file
+
+    pyramid.cookie.secret
+    pyramid.cookie.name
+    pyramid.cookie.secure
+    pyramid.cookie.timeout
+    pyramid.cookie.reissue_time
+    pyramid.cookie.max_age
+    pyramid.cookie.path
+    pyramid.cookie.httponly
+    pyramid.cookie.wild_domain
+    pyramid.cookie.hashalg
+    pyramid.cookie.debug
 
 
-User credentials
-    ini
-        steward.auth.<user>.pass
-        steward.auth.<user>.groups
-    yaml
-        users:
-            userid: password
-        groups:
-            userid: groups
+    User credentials
+        ini
+            steward.auth.<user>.pass
+            steward.auth.<user>.groups
+        yaml
+            users:
+                userid: password
+            groups:
+                userid: groups

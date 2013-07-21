@@ -4,7 +4,7 @@ import datetime
 import json
 import logging
 import requests
-import threading
+from multiprocessing.pool import ThreadPool
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest, exception_response
 from pyramid.renderers import render
@@ -75,27 +75,6 @@ def _param(request, name, default=NO_ARG, type=None):
             return type(arg)
     except:
         raise HTTPBadRequest('Badly formatted parameter "%s"' % name)
-
-def _post(config, uri, **kwargs):
-    """
-    Convenience method for making secure, admin-privileged requests to Steward
-    from the config object.
-
-    Parameters
-    ----------
-    uri : str
-        The uri path to use
-    kwargs : dict
-        The parameters to pass up in the request
-
-    """
-    if not uri.startswith('/'):
-        uri = '/' + uri
-    local_addr = config.get_settings()['steward.address']
-    cookies = kwargs.get('cookies', {})
-    cookies['__token'] = config.registry.secret_auth_token
-    kwargs['cookies'] = cookies
-    return requests.post(local_addr + uri, **kwargs)
 
 def _argify_kwargs(request, kwargs):
     """ Serialize keyword arguments for making an internal request """
@@ -184,23 +163,25 @@ def _run_background_task(request, command, *args, **kwargs):
         The keyword arguments to pass to the function
 
     """
-    thread = threading.Thread(target=lambda:_run_in_bg(command, *args,
-                                                       **kwargs))
-    thread.daemon = True
-    thread.start()
+    request.threadpool.apply_async(_run_in_bg, args=[command] + args,
+                                   kwds=kwargs)
+
+def _threadpool(request):
+    if not hasattr(request.registry, 'threadpool'):
+        request.registry.threadpool = ThreadPool(5)
+    return request.registry.threadpool
 
 def includeme(config):
     """ Configure the app """
-    config.add_directive('post', _post)
     config.include('steward.auth')
     config.include('steward.locks')
     config.include('steward.events')
-    config.include('steward.tasks')
     config.include('steward.base')
     config.add_acl_from_settings('steward')
     config.add_request_method(_param, name='param')
     config.add_request_method(_subreq, name='subreq')
     config.add_request_method(_bg_req, name='bg_request')
+    config.add_request_method(_threadpool, name='threadpool', reify=True)
     config.add_request_method(_run_background_task, name='background_task')
 
     config.add_route('auth', '/auth')

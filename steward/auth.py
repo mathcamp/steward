@@ -25,57 +25,6 @@ class Root(dict):
         (Deny, Everyone, ALL_PERMISSIONS),
     ]
 
-class InternalAdminAuthPolicy(object):
-    """
-    Specialized auth policy for internal requests
-
-    This allows us to make calls to Steward, from Steward with admin privileges
-
-    """
-    def __init__(self, token):
-        self._token = token
-
-    def authenticated_userid(self, request):
-        """ Return the authenticated userid or ``None`` if no
-        authenticated userid can be found. This method of the policy
-        should ensure that a record exists in whatever persistent store is
-        used related to the user (the user should not have been deleted);
-        if a record associated with the current id does not exist in a
-        persistent store, it should return ``None``."""
-        if request.cookies.get('__token', None) == self._token:
-            return 'admin'
-
-    def unauthenticated_userid(self, request):
-        """ Return the *unauthenticated* userid.  This method performs the
-        same duty as ``authenticated_userid`` but is permitted to return the
-        userid based only on data present in the request; it needn't (and
-        shouldn't) check any persistent store to ensure that the user record
-        related to the request userid exists."""
-        if request.cookies.get('__token', None) == self._token:
-            return 'admin'
-
-    def effective_principals(self, request):
-        """ Return a sequence representing the effective principals
-        including the userid and any groups belonged to by the current
-        user, including 'system' groups such as
-        ``pyramid.security.Everyone`` and
-        ``pyramid.security.Authenticated``. """
-        if request.cookies.get('__token', None) == self._token:
-            return ['admin']
-        return []
-
-    def remember(self, request, principal, **kw):
-        """ Return a set of headers suitable for 'remembering' the
-        principal named ``principal`` when set in a response.  An
-        individual authentication policy and its consumers can decide
-        on the composition and meaning of **kw. """
-        return []
-
-    def forget(self, request):
-        """ Return a set of headers suitable for 'forgetting' the
-        current user on subsequent requests. """
-        return []
-
 class MixedAuthenticationPolicy(object):
     """
     Auth policy that is backed by multiple other auth policies
@@ -291,7 +240,6 @@ def includeme(config):
     """ Configure the app """
     settings = config.get_settings()
     config.set_root_factory(Root)
-    config.registry.secret_auth_token = b64encode(uuid4().bytes + uuid4().bytes)
     config.add_directive('add_acl_from_settings', _add_acl_from_settings)
     config.add_directive('add_authentication_policy',
                          _add_authentication_policy)
@@ -328,8 +276,6 @@ def includeme(config):
         debug=asbool(settings.get('pyramid.cookie.debug', False)),
     )
     config.add_authentication_policy(auth_policy)
-    config.add_authentication_policy(InternalAdminAuthPolicy(
-        config.registry.secret_auth_token))
     config.set_default_permission('default')
 
     config.add_request_method(unauthenticated_userid, name='userid', reify=True)
