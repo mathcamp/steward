@@ -163,7 +163,7 @@ def _run_background_task(request, command, *args, **kwargs):
         The keyword arguments to pass to the function
 
     """
-    request.threadpool.apply_async(_run_in_bg, args=[command] + args,
+    request.threadpool.apply_async(_run_in_bg, args=(command,) + args,
                                    kwds=kwargs)
 
 def _threadpool(request):
