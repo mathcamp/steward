@@ -167,6 +167,7 @@ def _run_background_task(request, command, *args, **kwargs):
                                    kwds=kwargs)
 
 def _threadpool(request):
+    """ Create or retrieve a threadpool """
     if not hasattr(request.registry, 'threadpool'):
         request.registry.threadpool = ThreadPool(5)
     return request.registry.threadpool
