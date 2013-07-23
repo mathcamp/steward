@@ -1,17 +1,17 @@
 """ A server orchestration framework written as a Pyramid app """
 import datetime
-
 import json
 import logging
-import requests
 from multiprocessing.pool import ThreadPool
+from urllib import urlencode
+
+import requests
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest, exception_response
-from pyramid.renderers import render
+from pyramid.renderers import JSON, render
 from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.settings import asbool
-from urllib import urlencode
 
 from . import locks
 
@@ -19,6 +19,13 @@ from . import locks
 lock = locks.lock # pylint: disable=C0103
 
 LOG = logging.getLogger(__name__)
+
+
+json_renderer = JSON() # pylint: disable=C0103
+def datetime_adapter(obj, request):
+    """ Convert a datetime into a unix timestamp """
+    return float(obj.strftime('%s.%f'))
+json_renderer.add_adapter(datetime.datetime, datetime_adapter)
 
 def cmd(fxn):
     """
@@ -184,6 +191,8 @@ def includeme(config):
     config.add_request_method(_bg_req, name='bg_request')
     config.add_request_method(_threadpool, name='threadpool', reify=True)
     config.add_request_method(_run_background_task, name='background_task')
+    config.add_renderer('json', json_renderer)
+
 
     config.add_route('auth', '/auth')
     config.add_view('steward.views.do_auth', route_name='auth',
