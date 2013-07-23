@@ -1,17 +1,18 @@
 """ Command line client for Steward """
+import os
+import types
+
 import functools
 import getpass
 import inspect
 import json
 import logging
-import os
+import requests
 import shlex
 import subprocess
 import traceback
-import types
 from cmd import Cmd
-
-import requests
+from pprint import pprint
 from pyramid.httpexceptions import exception_response
 from pyramid.path import DottedNameResolver
 
@@ -183,7 +184,7 @@ class StewardREPL(Cmd):
     def get_names(self):
         return [name for name, _ in inspect.getmembers(self, callable)]
 
-    def set_cmd(self, name, function):
+    def set_cmd(self, name, function, wrap=True):
         """
         Create local bound methods for a remote command
 
@@ -193,10 +194,14 @@ class StewardREPL(Cmd):
             The name of the command
         doc : str
             The description/documentation for the command
+        wrap : bool, optional
+            Wrap the method with @repl_command (default True)
 
         """
         function = self.name_resolver.maybe_resolve(function)
-        bound_cmd = types.MethodType(repl_command(function), self, StewardREPL)
+        if wrap:
+            function = repl_command(function)
+        bound_cmd = types.MethodType(function, self, StewardREPL)
         setattr(self, 'do_' + name, bound_cmd)
 
     def rm_cmd(self, name):
@@ -266,7 +271,10 @@ class StewardREPL(Cmd):
         happens!
         """
         response = self.cmd(*args, **kwargs)
-        print response.text
+        try:
+            pprint(response.json())
+        except:
+            print response.text
 
     @repl_command
     def do_EOF(self): # pylint: disable=C0103
