@@ -107,7 +107,7 @@ def _subreq(request, route_name, **kwargs):
     kwargs = _argify_kwargs(request, kwargs)
     req.body = urlencode(kwargs)
     req.cookies = request.cookies
-    response = request.invoke_subrequest(req)
+    response = request.invoke_subrequest(req, use_tweens=True)
     if response.body:
         return json.loads(response.body)
 
