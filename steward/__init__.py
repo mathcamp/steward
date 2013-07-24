@@ -104,10 +104,12 @@ def _subreq(request, route_name, **kwargs):
     """
     req = Request.blank(request.route_path(route_name))
     req.method = 'POST'
+    for name in request.registry.subrequest_methods:
+        setattr(req, name, getattr(request, name))
     kwargs = _argify_kwargs(request, kwargs)
     req.body = urlencode(kwargs)
     req.cookies = request.cookies
-    response = request.invoke_subrequest(req, use_tweens=True)
+    response = request.invoke_subrequest(req)
     if response.body:
         return json.loads(response.body)
 
@@ -181,6 +183,7 @@ def _threadpool(request):
 
 def includeme(config):
     """ Configure the app """
+    config.registry.subrequest_methods = []
     config.include('steward.auth')
     config.include('steward.locks')
     config.include('steward.events')
