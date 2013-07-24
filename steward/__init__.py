@@ -90,6 +90,7 @@ def _argify_kwargs(request, kwargs):
             kwargs[key] = render('json', value, request=request)
     return kwargs
 
+
 def _subreq(request, route_name, **kwargs):
     """
     Convenience method for doing internal subrequests
@@ -112,6 +113,16 @@ def _subreq(request, route_name, **kwargs):
     response = request.invoke_subrequest(req)
     if response.body:
         return json.loads(response.body)
+
+def _safe_subreq(request, route_name, **kwargs):
+    """
+    Do an internal subrequest. If the route name does not exist, return None.
+
+    """
+    try:
+        return _subreq(request, route_name, **kwargs)
+    except KeyError:
+        return None
 
 def _bg_req(request, route_name, **kwargs):
     """
@@ -191,6 +202,7 @@ def includeme(config):
     config.add_acl_from_settings('steward')
     config.add_request_method(_param, name='param')
     config.add_request_method(_subreq, name='subreq')
+    config.add_request_method(_safe_subreq, name='safe_subreq')
     config.add_request_method(_bg_req, name='bg_request')
     config.add_request_method(_threadpool, name='threadpool', reify=True)
     config.add_request_method(_run_background_task, name='background_task')
