@@ -133,7 +133,7 @@ class StewardREPL(Cmd):
         """
         for mod in mods:
             mod = self.name_resolver.maybe_resolve(mod)
-            loader = Thread(target=lambda:mod.include_client(self))
+            loader = Thread(target=functools.partial(mod.include_client, self))
             loader.daemon = True
             loader.start()
 
