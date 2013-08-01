@@ -1,18 +1,19 @@
 """ Command line client for Steward """
-import os
-import types
-
 import functools
 import getpass
 import inspect
 import json
 import logging
-import requests
+import os
 import shlex
 import subprocess
 import traceback
+import types
 from cmd import Cmd
 from pprint import pprint
+from threading import Thread, Lock
+
+import requests
 from pyramid.httpexceptions import exception_response
 from pyramid.path import DottedNameResolver
 
@@ -67,6 +68,7 @@ class StewardREPL(Cmd):
     name_resolver = DottedNameResolver(__package__)
     prompt = '==> '
     request_params = {}
+    attr_lock = Lock()
     def start(self, conf):
         """
         Start running the interactive session (blocking)
@@ -131,7 +133,9 @@ class StewardREPL(Cmd):
         """
         for mod in mods:
             mod = self.name_resolver.maybe_resolve(mod)
-            mod.include_client(self)
+            loader = Thread(target=lambda:mod.include_client(self))
+            loader.daemon = True
+            loader.start()
 
     def help_help(self):
         """Print the help text for help"""
@@ -202,16 +206,18 @@ class StewardREPL(Cmd):
         if wrap:
             function = repl_command(function)
         bound_cmd = types.MethodType(function, self, StewardREPL)
-        setattr(self, 'do_' + name, bound_cmd)
+        with self.attr_lock:
+            setattr(self, 'do_' + name, bound_cmd)
 
     def rm_cmd(self, name):
         """ Remove a command from the client """
-        if hasattr(self, 'do_' + name):
-            delattr(self, 'do_' + name)
-        if hasattr(self, 'help_' + name):
-            delattr(self, 'help_' + name)
-        if hasattr(self, 'complete_' + name):
-            delattr(self, 'complete_' + name)
+        with self.attr_lock:
+            if hasattr(self, 'do_' + name):
+                delattr(self, 'do_' + name)
+            if hasattr(self, 'help_' + name):
+                delattr(self, 'help_' + name)
+            if hasattr(self, 'complete_' + name):
+                delattr(self, 'complete_' + name)
 
     def set_autocomplete(self, command, args):
         """ Set a command to autocomplete the given arguments """
@@ -229,7 +235,8 @@ class StewardREPL(Cmd):
                 matches.append(text)
             return matches
         bound_cmd = types.MethodType(wrapper, self, StewardREPL)
-        setattr(self, 'complete_' + command, bound_cmd)
+        with self.attr_lock:
+            setattr(self, 'complete_' + command, bound_cmd)
 
     def cmd(self, uri, **kwargs):
         """
