@@ -59,8 +59,11 @@ def _param(request, name, default=NO_ARG, type=None):
 
     """
     try:
-        arg = request.params[name]
-    except KeyError:
+        if request.params:
+            arg = request.params[name]
+        else:
+            arg = request.json_body[name]
+    except (KeyError, ValueError):
         if default is NO_ARG:
             raise HTTPBadRequest('Missing argument %s' % name)
         else:
