@@ -8,3 +8,7 @@ function-rgx=[a-z_][a-z0-9_]{0,30}$
 attr-rgx=[a-z_][a-z0-9_]{0,30}$
 method-rgx=([a-z_][a-z0-9_]{0,50}|setUp|tearDown|setUpClass|tearDownClass)$
 no-docstring-rgx=((__.*__)|setUp|tearDown)$
+
+[REPORTS]
+include-ids=yes
+reports=no
