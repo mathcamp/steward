@@ -22,6 +22,7 @@ LOG = logging.getLogger(__name__)
 
 DEFAULT_INCLUDES = ['steward.base', 'steward.events']
 
+
 def repl_command(fxn):
     """
     Decorator for :py:class:`~steward.clients.StewardREPL` methods
@@ -45,7 +46,9 @@ def repl_command(fxn):
         return fxn(self, *args, **kwargs)
     return wrapper
 
+
 class StewardREPL(Cmd):
+
     """
     Interactive commandline interface
 
@@ -69,9 +72,10 @@ class StewardREPL(Cmd):
     prompt = '==> '
     request_params = {}
     attr_lock = Lock()
-    def start(self, conf):
+
+    def initialize(self, conf):
         """
-        Start running the interactive session (blocking)
+        Prepare the client for action
 
         Parameters
         ----------
@@ -100,6 +104,9 @@ class StewardREPL(Cmd):
         self._auth(username, password)
         self._load_extensions(DEFAULT_INCLUDES)
         self._load_extensions(conf.get('includes', []))
+
+    def start(self):
+        """ Start running the interactive session (blocking) """
         while self.running:
             try:
                 self.cmdloop()
@@ -115,7 +122,7 @@ class StewardREPL(Cmd):
             'password': password,
         }
         response = requests.post(self.host + '/auth', data=data,
-                allow_redirects=False, **self.request_params)
+                                 allow_redirects=False, **self.request_params)
         if response.ok:
             self.cookies = response.cookies
         else:
@@ -175,9 +182,10 @@ class StewardREPL(Cmd):
         args = args[2:]
         alias_args = ' '.join(["'" + a + "'" for a in args])
         alias_kwargs = ' '.join(["'" + k + '=' + v + "'" for k, v in
-            kwargs.iteritems()])
+                                 kwargs.iteritems()])
         full_cmd = ' '.join((tgt, alias_args, alias_kwargs)).strip()
         self.aliases[command] = full_cmd
+
         def wrapper(self, other_args):
             """Wrap the aliased command"""
             self.onecmd(' '.join((full_cmd, other_args)))
@@ -230,7 +238,7 @@ class StewardREPL(Cmd):
             full_text = line[begidx:endidx]
             prefix = len(full_text) - len(text)
             matches = [arg[prefix:] for arg in args if
-                arg.startswith(full_text)]
+                       arg.startswith(full_text)]
             if not matches:
                 matches.append(text)
             return matches
@@ -284,7 +292,7 @@ class StewardREPL(Cmd):
             print response.text
 
     @repl_command
-    def do_EOF(self): # pylint: disable=C0103
+    def do_EOF(self):  # pylint: disable=C0103
         """Exit"""
         return self.onecmd('exit')
 
@@ -298,29 +306,37 @@ class StewardREPL(Cmd):
     def emptyline(self):
         pass
 
+
 def run_client():
     """ Entry point for running the REPL """
+    import argparse
     import sys
     import yaml
-    if len(sys.argv) == 1:
-        if os.path.exists('/etc/steward/client'):
-            conf_file = '/etc/steward/client'
-        else:
-            print ("Must specify a conf file or directory! "
-                   "/etc/steward/client/ not found")
-            sys.exit(1)
-    elif len(sys.argv) == 2:
-        conf_file = sys.argv[1]
-    else:
-        print "Too many arguments!"
+
+    parser = argparse.ArgumentParser(description=run_client.__doc__)
+    parser.add_argument('-c', default='/etc/steward/client',
+                        help="Config file or directory (default %(default)s)")
+    parser.add_argument('cmd', nargs='*',
+                        help="Run this command, print the output, and exit")
+
+    args = vars(parser.parse_args())
+    if not os.path.exists(args['c']):
+        print ("Must specify a conf file or directory! "
+               "/etc/steward/client/ not found")
         sys.exit(1)
+
     cli = StewardREPL()
-    if os.path.isfile(conf_file):
-        with open(conf_file, 'r') as infile:
-            conf = yaml.load(infile)
+    if os.path.isfile(args['c']):
+        with open(args['c'], 'r') as infile:
+            conf = yaml.safe_load(infile)
     else:
         conf = {}
-        for filename in os.listdir(conf_file):
-            with open(os.path.join(conf_file, filename), 'r') as infile:
-                conf.update(yaml.load(infile))
-    cli.start(conf)
+        for filename in os.listdir(args['c']):
+            with open(os.path.join(args['c'], filename), 'r') as infile:
+                conf.update(yaml.safe_load(infile))
+
+    cli.initialize(conf)
+    if args['cmd']:
+        cli.onecmd(' '.join(args['cmd']))
+    else:
+        cli.start()
