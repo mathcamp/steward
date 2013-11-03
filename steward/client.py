@@ -20,7 +20,7 @@ from pyramid.path import DottedNameResolver
 
 LOG = logging.getLogger(__name__)
 
-DEFAULT_INCLUDES = ['steward.base', 'steward.events']
+DEFAULT_INCLUDES = ['steward.base']
 
 
 def repl_command(fxn):

@@ -1,22 +1,18 @@
 """ A server orchestration framework written as a Pyramid app """
 import datetime
+
 import json
 import logging
-from multiprocessing.pool import ThreadPool
-from urllib import urlencode
-
 import requests
+from multiprocessing.pool import ThreadPool
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest, exception_response
 from pyramid.renderers import JSON, render
 from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.settings import asbool
+from urllib import urlencode
 
-from . import locks
-
-
-lock = locks.lock  # pylint: disable=C0103
 
 LOG = logging.getLogger(__name__)
 
@@ -212,8 +208,6 @@ def includeme(config):
     """ Configure the app """
     config.registry.subrequest_methods = []
     config.include('steward.auth')
-    config.include('steward.locks')
-    config.include('steward.events')
     config.include('steward.base')
     config.add_acl_from_settings('steward')
     config.add_request_method(_param, name='param')
