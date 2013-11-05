@@ -1,6 +1,7 @@
 """ Utilities """
-import contextlib
 import os
+
+import contextlib
 import shutil
 from uuid import uuid1
 

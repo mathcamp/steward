@@ -1,11 +1,12 @@
 """ Steward's default endpoints """
 import logging
 import traceback
-from pyramid.httpexceptions import HTTPBadRequest
-from pyramid.security import remember
+from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden
+from pyramid.security import remember, authenticated_userid
 
 
 LOG = logging.getLogger(__name__)
+
 
 def do_auth(request):
     """ Authentication endpoint for clients to log in """
@@ -16,10 +17,17 @@ def do_auth(request):
         return request.response
     raise HTTPBadRequest("Login failed")
 
+
+def do_check_auth(request):
+    """ Return the userid or None if not authenticated """
+    return authenticated_userid(request)
+
+
 def bad_request(context, request):
     """ Return 400's with a bit more context for the client """
     request.response.status_code = 400
     return {'detail': context.detail}
+
 
 def server_error(context, request):
     """ Return 500's with a bit more context for the client """

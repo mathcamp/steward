@@ -1,12 +1,12 @@
 """ Authentication and authorization tools for Steward """
-from base64 import b64encode
-from passlib.hash import sha256_crypt # pylint: disable=E0611
+from passlib.hash import sha256_crypt  # pylint: disable=E0611
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
+from pyramid.path import DottedNameResolver
 from pyramid.security import (Allow, Deny, Everyone, Authenticated,
-                              ALL_PERMISSIONS, unauthenticated_userid)
+                              ALL_PERMISSIONS, unauthenticated_userid,
+                              NO_PERMISSION_REQUIRED)
 from pyramid.settings import aslist, asbool
-from uuid import uuid4
 
 
 def asint(setting):
@@ -18,6 +18,7 @@ def asint(setting):
 
 
 class Root(dict):
+
     """ Root context for Steward """
     __name__ = __parent__ = None
     __acl__ = [
@@ -25,7 +26,9 @@ class Root(dict):
         (Deny, Everyone, ALL_PERMISSIONS),
     ]
 
+
 class MixedAuthenticationPolicy(object):
+
     """
     Auth policy that is backed by multiple other auth policies
 
@@ -94,10 +97,14 @@ class MixedAuthenticationPolicy(object):
 
 
 class IAuthDB(object):
+
     """
     Interface for accessing a list of user credentials and user security groups
 
     """
+    def __init__(self, config):
+        self.config = config
+
     def authenticate(self, request, userid, password):
         """
         Check a user's login credentials
@@ -132,7 +139,9 @@ class IAuthDB(object):
         """
         raise NotImplementedError
 
+
 class DummyAuthDB(IAuthDB):
+
     """
     Auth object that allows anyone to log in as anything, but has no security
     principals
@@ -144,7 +153,9 @@ class DummyAuthDB(IAuthDB):
     def groups(self, userid, request):
         return []
 
+
 class SettingsAuthDB(IAuthDB):
+
     """
     Auth object that pulls user data out of the app settings
 
@@ -153,22 +164,28 @@ class SettingsAuthDB(IAuthDB):
     settings : dict
         The settings for the pyramid app
 
-    """
-    def __init__(self, settings):
-        self.settings = settings
+    Notes
+    -----
+    The format of the config file is::
 
+        steward.auth.<username>.pass = <salted password>
+        steward.auth.<username>.groups = <list of groups>
+
+    """
     def authenticate(self, request, userid, password):
-        key = 'steward.auth.{}.pass'.format(userid)
-        stored_pw = self.settings.get(key)
+        key = 'steward.auth.{0}.pass'.format(userid)
+        stored_pw = self.config.get_settings().get(key)
         if stored_pw is None:
             return False
         return sha256_crypt.verify(password, stored_pw)
 
     def groups(self, userid, request):
-        key = 'steward.auth.{}.groups'.format(userid)
+        key = 'steward.auth.{0}.groups'.format(userid)
         return aslist(request.registry.settings.get(key, []))
 
+
 class YamlAuthDB(IAuthDB):
+
     """
     Auth object that pulls user data from a yaml file
 
@@ -177,11 +194,29 @@ class YamlAuthDB(IAuthDB):
     filename : str
         Name of the yaml file with the user data
 
+    Notes
+    -----
+    The format of the yaml file is::
+
+        users:
+            <username>: <salted password>
+        groups:
+            <username>:
+                - <group1>
+                - <group2>
+
+    You may either put the path to the yaml file in the field
+    ``steward.auth.db.file`` or as the value of ``steward.auth.db`` directly
+
     """
-    def __init__(self, filename):
+    def __init__(self, config):
+        super(YamlAuthDB, self).__init__(config)
         import yaml
+        settings = config.get_settings()
+        filename = settings.get('steward.auth.db.file',
+                                settings['steward.auth.db'])
         with open(filename, 'r') as infile:
-            self.data = yaml.load(infile)
+            self.data = yaml.safe_load(infile)
 
     def authenticate(self, request, userid, password):
         stored_pw = self.data['users'].get(userid)
@@ -192,43 +227,36 @@ class YamlAuthDB(IAuthDB):
     def groups(self, user, request):
         return self.data['groups'].get(user)
 
+
 def _add_authentication_policy(config, policy):
     """ Config directive that adds another auth policy to Steward """
     config.registry.authentication_policy.add_policy(policy)
 
-def _add_acl_from_settings(config, prefix):
+
+def add_acl_from_settings(config):
     """
     Load ACL data from settings
 
-    Parameters
-    ----------
-    prefix : str
-        The prefix of the ACL settings
-
     Notes
     -----
-    The settings should be in the form: <prefix>.<perm>.<permission> = <list of groups>
+    The settings should be in the form::
+
+        steward.perm.<permission> = <list of groups>
 
     For example::
 
-        myext.perm.write = developer manager
+        steward.perm.schedule_write = developer manager
 
     This will give any users in the ``developer`` or ``manager`` group access
-    to endpoints with the 'write' permission.
+    to endpoints with the 'schedule_write' permission.
 
 
     """
     settings = config.get_settings()
     for key, value in settings.iteritems():
-        if not key.startswith(prefix):
+        if not key.startswith('steward.perm.'):
             continue
-        tail = key[len(prefix):]
-        if tail.startswith('.'):
-            tail = tail[1:]
-        components = tail.split('.')
-        if len(components) != 2 or components[0] != 'perm':
-            continue
-        permission = components[1]
+        permission = key.split('.')[2]
         for principle in aslist(value):
             if principle.lower() == 'authenticated':
                 principle = Authenticated
@@ -236,25 +264,33 @@ def _add_acl_from_settings(config, prefix):
                 principle = Everyone
             Root.__acl__.insert(0, (Allow, principle, permission))
 
+
 def includeme(config):
     """ Configure the app """
     settings = config.get_settings()
+    name_resolver = DottedNameResolver(__package__)
     config.set_root_factory(Root)
-    config.add_directive('add_acl_from_settings', _add_acl_from_settings)
+    add_acl_from_settings(config)
     config.add_directive('add_authentication_policy',
                          _add_authentication_policy)
 
+    config.add_route('auth', '/auth')
+    config.add_view('steward.views.do_auth', route_name='auth',
+                    renderer='json', permission=NO_PERMISSION_REQUIRED)
+    config.add_route('check_auth', '/check_auth')
+    config.add_view('steward.views.do_check_auth', route_name='check_auth',
+                    renderer='json', permission=NO_PERMISSION_REQUIRED)
+
     if not asbool(settings.get('steward.auth.enable')):
-        config.registry.auth_db = DummyAuthDB()
+        config.registry.auth_db = DummyAuthDB(config)
         return
 
-    auth_db_source = settings.get('steward.auth.db')
-    if auth_db_source is None:
-        auth_db = SettingsAuthDB(settings)
+    auth_db_source = settings.get('steward.auth.db', 'settings')
+    if auth_db_source == 'settings':
+        auth_db_source = 'steward.auth.SettingsAuthDB'
     elif auth_db_source.endswith('.yaml'):
-        auth_db = YamlAuthDB(auth_db_source)
-    else:
-        raise ValueError("Unrecognized auth database {}".format(auth_db))
+        auth_db_source = 'steward.auth.YamlAuthDB'
+    auth_db = name_resolver.resolve(auth_db_source)(config)
 
     config.registry.auth_db = auth_db
 
@@ -262,20 +298,21 @@ def includeme(config):
     config.registry.authentication_policy = MixedAuthenticationPolicy()
     config.set_authentication_policy(config.registry.authentication_policy)
     auth_policy = AuthTktAuthenticationPolicy(
-        settings['pyramid.cookie.secret'],
+        settings['steward.cookie.secret'],
         callback=auth_db.groups,
-        cookie_name=settings.get('pyramid.cookie.name', 'auth_tkt'),
-        secure=asbool(settings.get('pyramid.cookie.secure')),
-        timeout=asint(settings.get('pyramid.cookie.timeout')),
-        reissue_time=asint(settings.get('pyramid.cookie.reissue_time')),
-        max_age=asint(settings.get('pyramid.cookie.max_age')),
-        path=settings.get('pyramid.cookie.path', '/'),
-        http_only=asbool(settings.get('pyramid.cookie.httponly', True)),
-        wild_domain=asbool(settings.get('pyramid.cookie.wild_domain', True)),
-        hashalg=settings.get('pyramid.cookie.hashalg', 'sha512'),
-        debug=asbool(settings.get('pyramid.cookie.debug', False)),
+        cookie_name=settings.get('steward.cookie.name', 'auth_tkt'),
+        secure=asbool(settings.get('steward.cookie.secure')),
+        timeout=asint(settings.get('steward.cookie.timeout')),
+        reissue_time=asint(settings.get('steward.cookie.reissue_time')),
+        max_age=asint(settings.get('steward.cookie.max_age')),
+        path=settings.get('steward.cookie.path', '/'),
+        http_only=asbool(settings.get('steward.cookie.httponly', True)),
+        wild_domain=asbool(settings.get('steward.cookie.wild_domain', True)),
+        hashalg=settings.get('steward.cookie.hashalg', 'sha512'),
+        debug=asbool(settings.get('steward.cookie.debug', False)),
     )
     config.add_authentication_policy(auth_policy)
     config.set_default_permission('default')
 
-    config.add_request_method(unauthenticated_userid, name='userid', reify=True)
+    config.add_request_method(
+        unauthenticated_userid, name='userid', reify=True)

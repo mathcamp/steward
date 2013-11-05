@@ -1,21 +1,23 @@
 """ Command line client for Steward """
+import cPickle as pickle
+import os
+import stat
+import types
+
 import functools
 import getpass
 import inspect
 import json
 import logging
-import os
+import requests
 import shlex
 import subprocess
 import traceback
-import types
 from cmd import Cmd
 from pprint import pprint
-from threading import Thread, Lock
-
-import requests
 from pyramid.httpexceptions import exception_response
 from pyramid.path import DottedNameResolver
+from threading import Thread, Lock
 
 
 LOG = logging.getLogger(__name__)
@@ -64,6 +66,7 @@ class StewardREPL(Cmd):
         True while session is active, False after quitting
 
     """
+    conf = {}
     aliases = {}
     running = False
     host = None
@@ -83,6 +86,7 @@ class StewardREPL(Cmd):
             Configuration dictionary
 
         """
+        self.conf = conf
         self.identchars += './'
         self.host = conf['host']
         self.request_params = conf.get('request_params', {})
@@ -93,15 +97,11 @@ class StewardREPL(Cmd):
             for alias, longvalue in conf['aliases'].iteritems():
                 self.do_alias(alias + ' ' + longvalue)
         self.running = True
-        if 'user' in conf:
-            username = conf['user']
-        else:
+        self._load_cookies()
+        if self._needs_auth():
             username = raw_input('Username: ')
-        if 'pass' in conf:
-            password = conf['pass']
-        else:
             password = getpass.getpass()
-        self._auth(username, password)
+            self._auth(username, password)
         self._load_extensions(DEFAULT_INCLUDES)
         self._load_extensions(conf.get('includes', []))
 
@@ -115,6 +115,13 @@ class StewardREPL(Cmd):
             except:
                 traceback.print_exc()
 
+    def _needs_auth(self):
+        """ Check if the user needs to supply a password """
+        response = requests.post(self.host + '/check_auth',
+                                 cookies=self.cookies, allow_redirects=False,
+                                 **self.request_params)
+        return not response.ok or response.json() is None
+
     def _auth(self, userid, password):
         """ Authenticate the user with the Steward server """
         data = {
@@ -125,8 +132,39 @@ class StewardREPL(Cmd):
                                  allow_redirects=False, **self.request_params)
         if response.ok:
             self.cookies = response.cookies
+            self._save_cookies()
         else:
             raise exception_response(response.status_code)
+
+    def _save_cookies(self):
+        """ Save the auth cookies to a file """
+        filename = self._cookie_file()
+        if filename is None:
+            return
+        mode = stat.S_IRUSR | stat.S_IWUSR
+        outfile = None
+        try:
+            outfile = os.fdopen(os.open(filename, os.O_WRONLY | os.O_CREAT,
+                                        mode), 'w')
+            pickle.dump(self.cookies, outfile)
+        finally:
+            if outfile is not None:
+                outfile.close()
+
+
+    def _load_cookies(self):
+        """ Load the auth cookies from a file """
+        filename = self._cookie_file()
+        if filename is None or not os.path.exists(filename):
+            return
+        with open(filename, 'r') as infile:
+            self.cookies = pickle.load(infile)
+
+    def _cookie_file(self):
+        """ Get the cookie file """
+        return self.conf.get('cookie_file',
+                             os.path.join(os.environ.get('HOME', '.'),
+                                                  '.steward_cookie'))
 
     def _load_extensions(self, mods):
         """

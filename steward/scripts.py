@@ -1,6 +1,7 @@
 """ Console scripts """
 import getpass
-from passlib.hash import sha256_crypt # pylint: disable=E0611
+from passlib.hash import sha256_crypt  # pylint: disable=E0611
+
 
 def gen_password():
     """ Generate a salted password """
