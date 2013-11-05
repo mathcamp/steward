@@ -29,12 +29,15 @@ provided inside angle brackets::
 
     # Enable auth for steward
     steward.auth.enable = false
+
     # For each permission, provide a list of groups that can access that
     # permission. (The special keywords 'authenticated' and 'everyone' work)
     steward.perm.<permission> = <group1> <group2>
+
     # There is a special permission named "default" which will apply to all
     # endpoints not explicitly marked with a permission
     steward.perm.default
+
     # The source of user auth credentials. Should be an instance of
     # ``steward.auth.IAuthDB``. 'settings' and 'yaml' are shortcuts.
     steward.auth.db = settings
@@ -63,13 +66,17 @@ should be a yaml file. All keys are optional::
     includes:
         - <pkg1>
         - <pkg2>
+
     # Any additional keyword arguments for the ``request.post`` call
     request_params: {}
+
     # Change the prompt
     prompt: '==> '
+
     # Set command aliases
     aliases:
         <alias>: <command to alias>
+
     # Path to the file where auth cookies are stored. Use None to disable
     # saving auth cookies.
     cookie_file: <defaults to $HOME/.steward_cookie>
