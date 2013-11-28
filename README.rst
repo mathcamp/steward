@@ -61,6 +61,9 @@ Client Configuration
 The Steward client can specify a config file with the ``-c`` option. This
 should be a yaml file. All keys are optional::
 
+    # The default host to connect to
+    host: <https://my.steward.server>
+
     # This is a list of all steward extensions to include. They will typically
     # add additional commands to the client.
     includes:
