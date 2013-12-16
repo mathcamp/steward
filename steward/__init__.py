@@ -1,15 +1,20 @@
 """ A server orchestration framework written as a Pyramid app """
 import datetime
 
+import functools
+import inspect
 import json
 import logging
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest
+from pyramid.interfaces import IRequest
 from pyramid.renderers import JSON, render
 from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.settings import asbool
 from urllib import urlencode
+from zope.interface.exceptions import DoesNotImplement
+from zope.interface.verify import verifyObject
 
 
 LOG = logging.getLogger(__name__)
@@ -63,7 +68,7 @@ def _param(request, name, default=NO_ARG, type=None):
                 arg = json.loads(arg)
                 assert isinstance(arg, type)
             return arg
-        elif type is datetime.datetime:
+        elif type is datetime.datetime or type is datetime:
             return datetime.datetime.fromtimestamp(float(arg))
         elif type is bool:
             return asbool(arg)
@@ -71,6 +76,95 @@ def _param(request, name, default=NO_ARG, type=None):
             return type(arg)
     except:
         raise HTTPBadRequest('Badly formatted parameter "%s"' % name)
+
+
+def argify(*args, **type_kwargs):
+    """
+    Request decorator for automagically passing in request parameters
+
+    Notes
+    -----
+    Here is a sample use case::
+
+        @argify(foo=dict, ts=datetime)
+        def handle_request(request, foo, ts, bar='baz'):
+            # do request handling
+
+    No special type is required for strings::
+
+        @argify
+        def handle_request(request, foo, bar='baz'):
+            # do request handling (both 'foo' and 'bar' are strings)
+
+    If any positional arguments are missing, it will raise a HTTPBadRequest
+    exception. If any keyword arguments are missing, it will simply use
+    whatever the default value is.
+
+    Note that unit tests should be unaffected by this decorator. This should be
+    valid::
+
+        @argify
+        def myrequest(request, var1, var2='foo'):
+            return 'bar'
+
+        class TestReq(unittest.TestCase):
+            def test_my_request(self):
+                request = pyramid.testing.DummyRequest()
+                retval = myrequest(request, 5, var2='foobar')
+                self.assertEqual(retval, 'bar')
+
+    """
+    def wrapper(fxn):
+        """ Function decorator """
+        @functools.wraps(fxn)
+        def param_twiddler(*args, **kwargs):
+            """ The actual wrapper function that pulls out the params """
+            def is_request(obj):
+                """ Check if an object looks like a request """
+                try:
+                    return verifyObject(IRequest, obj)
+                except DoesNotImplement:
+                    return False
+
+            # If the second arg is the request, this is called from pyramid
+            if len(args) == 2 and len(kwargs) == 0 and is_request(args[1]):
+                context, request = args
+                argspec = inspect.getargspec(fxn)
+                if argspec.defaults is not None:
+                    required = argspec.args[:-len(argspec.defaults)]
+                    optional = argspec.args[-len(argspec.defaults):]
+                else:
+                    required = argspec.args
+                    optional = ()
+                scope = {}
+                for param in required:
+                    if param == 'context':
+                        scope['context'] = context
+                    elif param == 'request':
+                        scope['request'] = request
+                    else:
+                        scope[param] = _param(request, param,
+                                              type=type_kwargs.get(param))
+                no_val = object()
+                for param in optional:
+                    val = _param(request, param, default=no_val,
+                                 type=type_kwargs.get(param))
+                    if val is not no_val:
+                        scope[param] = val
+                return fxn(**scope)
+            else:
+                # Otherwise, it's likely a unit test. Don't alter args at all.
+                return fxn(*args, **kwargs)
+        return param_twiddler
+
+    if len(args) == 1 and len(type_kwargs) == 0 and inspect.isfunction(args[0]):
+        # @request params
+        # def fxn(request, var1, var2):
+        return wrapper(args[0])
+    else:
+        # @request params(var1=bool, var2=list)
+        # def fxn(request, var1, var2):
+        return wrapper
 
 
 def _argify_kwargs(request, kwargs):
