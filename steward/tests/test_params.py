@@ -187,3 +187,10 @@ class TestParamAnnotation(TestCase):
             self.assertEquals(field, [1, 2, 3])
         request = DummyRequest()
         req(request, [1, 2, 3])
+
+    def test_error_on_mismatch(self):
+        """ argify throws error if there's an argument mismatch """
+        def req(request, field):
+            pass
+        decorator = argify(foobar=bool)
+        self.assertRaises(TypeError, decorator, req)

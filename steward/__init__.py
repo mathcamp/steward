@@ -116,26 +116,32 @@ def argify(*args, **type_kwargs):
     """
     def wrapper(fxn):
         """ Function decorator """
+        argspec = inspect.getargspec(fxn)
+        if argspec.defaults is not None:
+            required = argspec.args[:-len(argspec.defaults)]
+            optional = argspec.args[-len(argspec.defaults):]
+        else:
+            required = argspec.args
+            optional = ()
+
+        for type_arg in type_kwargs:
+            if type_arg not in required and type_arg not in optional:
+                raise TypeError("Argument '%s' specified in argify, but not "
+                                "present in function definition" % type_arg)
+
+        def is_request(obj):
+            """ Check if an object looks like a request """
+            try:
+                return verifyObject(IRequest, obj)
+            except DoesNotImplement:
+                return False
+
         @functools.wraps(fxn)
         def param_twiddler(*args, **kwargs):
             """ The actual wrapper function that pulls out the params """
-            def is_request(obj):
-                """ Check if an object looks like a request """
-                try:
-                    return verifyObject(IRequest, obj)
-                except DoesNotImplement:
-                    return False
-
             # If the second arg is the request, this is called from pyramid
             if len(args) == 2 and len(kwargs) == 0 and is_request(args[1]):
                 context, request = args
-                argspec = inspect.getargspec(fxn)
-                if argspec.defaults is not None:
-                    required = argspec.args[:-len(argspec.defaults)]
-                    optional = argspec.args[-len(argspec.defaults):]
-                else:
-                    required = argspec.args
-                    optional = ()
                 scope = {}
                 for param in required:
                     if param == 'context':
