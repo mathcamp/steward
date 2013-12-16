@@ -13,8 +13,8 @@ from pyramid.request import Request
 from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.settings import asbool
 from urllib import urlencode
-from zope.interface.exceptions import DoesNotImplement
-from zope.interface.verify import verifyObject
+from zope.interface.exceptions import DoesNotImplement  # pylint: disable=F0401
+from zope.interface.verify import verifyObject  # pylint: disable=F0401
 
 
 LOG = logging.getLogger(__name__)

@@ -10,7 +10,8 @@ from unittest import TestCase
 from steward import _param, argify
 
 
-class TestUtil(TestCase):
+class TestParam(TestCase):
+    """ Tests for the request.param utility """
     def test_unicode_param(self):
         """ Pull unicode params off of request object """
         request = DummyRequest()
@@ -126,7 +127,8 @@ class TestUtil(TestCase):
 
 # pylint: disable=E1120,W0613,C0111
 
-class TestParamAnnotation(TestCase):
+class TestArgify(TestCase):
+    """ Tests for the argify decorator """
     def test_unicode(self):
         """ Pull unicode parameters from request """
         @argify
