@@ -196,3 +196,32 @@ class TestArgify(TestCase):
             pass
         decorator = argify(foobar=bool)
         self.assertRaises(TypeError, decorator, req)
+
+    def test_kwargs(self):
+        """ argify will pass extra kwargs in **kwargs """
+        @argify
+        def req(request, f1, f2=None, **kwargs):
+            self.assertEquals(f1, 'bar')
+            self.assertEquals(kwargs, {'foobar': 'baz'})
+        context = object()
+        request = DummyRequest()
+        request.params = {
+            'f1': 'bar',
+            'foobar': 'baz',
+        }
+        req(context, request)
+
+    def test_kwargs_json_body(self):
+        """ argify will pass extra kwargs in **kwargs in json body """
+        @argify
+        def req(request, f1, f2=None, **kwargs):
+            self.assertEquals(f1, 'bar')
+            self.assertEquals(kwargs, {'foobar': 'baz'})
+        context = object()
+        request = DummyRequest()
+        request.params = {}
+        request.json_body = {
+            'f1': 'bar',
+            'foobar': 'baz',
+        }
+        req(context, request)

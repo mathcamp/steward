@@ -5,6 +5,7 @@ import functools
 import inspect
 import json
 import logging
+import copy
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.interfaces import IRequest
@@ -46,14 +47,67 @@ def _param(request, name, default=NO_ARG, type=None):
         provided
 
     """
-    loads = True
+    params, loads = _params_from_request(request, default != NO_ARG)
+    return _param_from_dict(params, name, default, type, loads)
+
+
+def _params_from_request(request, allow_missing):
+    """
+    Pull the relevant parameters off the request
+
+    Uses query params by default. If no query params are present, it uses
+    json_body
+
+    Parameters
+    ----------
+    request : :class:`~pyramid.request.Request`
+    allow_missing : bool
+        If False and no params found, raise a 400
+
+    Returns
+    -------
+    params : dict
+    loads : bool
+        If true, any lists/dicts in the params need to be json decoded
+
+    """
+    if request.params:
+        return request.params, True
+    else:
+        try:
+            return request.json_body, False
+        except ValueError:
+            if allow_missing:
+                return {}, False
+            else:
+                raise HTTPBadRequest('No request parameters found!')
+
+
+def _param_from_dict(params, name, default=NO_ARG, type=None, loads=True):
+    """
+    Pull a parameter out of a dict and perform type conversion
+
+    Parameters
+    ----------
+    params : dict
+    name : str
+        The name of the parameter to retrieve
+    default : object
+        The default value to use if the parameter is missing
+    type : type
+        A python type such as str, list, dict, bool, or datetime
+    loads : bool
+        If True, json decode list/dict data types
+
+    Raises
+    ------
+    exc : :class:`~pyramid.httpexceptions.HTTPBadRequest`
+        If the parameter is missing and no default specified
+
+    """
     try:
-        if request.params:
-            arg = request.params[name]
-        else:
-            arg = request.json_body[name]
-            loads = False
-    except (KeyError, ValueError):
+        arg = params[name]
+    except KeyError:
         if default is NO_ARG:
             raise HTTPBadRequest('Missing argument %s' % name)
         else:
@@ -66,7 +120,8 @@ def _param(request, name, default=NO_ARG, type=None):
         elif type is list or type is dict:
             if loads:
                 arg = json.loads(arg)
-                assert isinstance(arg, type)
+            if not isinstance(arg, type):
+                raise HTTPBadRequest("Argument '%s' is the wrong type!" % name)
             return arg
         elif type is datetime.datetime or type is datetime:
             return datetime.datetime.fromtimestamp(float(arg))
@@ -118,10 +173,10 @@ def argify(*args, **type_kwargs):
         """ Function decorator """
         argspec = inspect.getargspec(fxn)
         if argspec.defaults is not None:
-            required = argspec.args[:-len(argspec.defaults)]
-            optional = argspec.args[-len(argspec.defaults):]
+            required = set(argspec.args[:-len(argspec.defaults)])
+            optional = set(argspec.args[-len(argspec.defaults):])
         else:
-            required = argspec.args
+            required = set(argspec.args)
             optional = ()
 
         for type_arg in type_kwargs:
@@ -143,20 +198,28 @@ def argify(*args, **type_kwargs):
             if len(args) == 2 and len(kwargs) == 0 and is_request(args[1]):
                 context, request = args
                 scope = {}
+                params, loads = _params_from_request(request,
+                                                     len(required) == 0)
+                params = copy.copy(params)
                 for param in required:
                     if param == 'context':
                         scope['context'] = context
                     elif param == 'request':
                         scope['request'] = request
                     else:
-                        scope[param] = _param(request, param,
-                                              type=type_kwargs.get(param))
+                        scope[param] = _param_from_dict(params, param, NO_ARG,
+                                                        type_kwargs.get(param),
+                                                        loads=loads)
+                        params.pop(param)
                 no_val = object()
                 for param in optional:
-                    val = _param(request, param, default=no_val,
-                                 type=type_kwargs.get(param))
+                    val = _param_from_dict(params, param, no_val,
+                                           type_kwargs.get(param), loads)
+                    params.pop(param, None)
                     if val is not no_val:
                         scope[param] = val
+                if argspec.keywords is not None:
+                    scope.update(params)
                 return fxn(**scope)
             else:
                 # Otherwise, it's likely a unit test. Don't alter args at all.
@@ -164,11 +227,11 @@ def argify(*args, **type_kwargs):
         return param_twiddler
 
     if len(args) == 1 and len(type_kwargs) == 0 and inspect.isfunction(args[0]):
-        # @request params
+        # @argify
         # def fxn(request, var1, var2):
         return wrapper(args[0])
     else:
-        # @request params(var1=bool, var2=list)
+        # @argify(var1=bool, var2=list)
         # def fxn(request, var1, var2):
         return wrapper
 
