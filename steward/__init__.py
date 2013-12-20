@@ -5,7 +5,6 @@ import functools
 import inspect
 import json
 import logging
-import copy
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.interfaces import IRequest
@@ -200,7 +199,7 @@ def argify(*args, **type_kwargs):
                 scope = {}
                 params, loads = _params_from_request(request,
                                                      len(required) == 0)
-                params = copy.copy(params)
+                params = dict(params)
                 for param in required:
                     if param == 'context':
                         scope['context'] = context
