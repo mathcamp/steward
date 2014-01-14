@@ -10,9 +10,9 @@ CHANGES = open(os.path.join(HERE, 'CHANGES.txt')).read()
 
 REQUIREMENTS = [
     'pyramid>=1.4',
+    'pyramid_duh',
     'requests',
     'PyYAML',
-    'croniter',
     'passlib',
 ]
 
