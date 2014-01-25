@@ -17,7 +17,7 @@ def asint(setting):
         return int(setting)
 
 
-class Root(dict):
+class Root(object):
 
     """ Root context for Steward """
     __name__ = __parent__ = None
@@ -25,6 +25,8 @@ class Root(dict):
         (Allow, 'admin', ALL_PERMISSIONS),
         (Deny, Everyone, ALL_PERMISSIONS),
     ]
+    def __init__(self, request):
+        self.request = request
 
 
 class IAuthDB(object):
