@@ -370,8 +370,9 @@ def run_client():
     else:
         conf = {}
         for filename in os.listdir(args['c']):
-            with open(os.path.join(args['c'], filename), 'r') as infile:
-                conf.update(yaml.safe_load(infile))
+            if filename.endswith('.yaml'):
+                with open(os.path.join(args['c'], filename), 'r') as infile:
+                    conf.update(yaml.safe_load(infile))
 
     cli.initialize(conf)
     if args['cmd']:
