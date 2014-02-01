@@ -75,6 +75,7 @@ class StewardREPL(Cmd):
     prompt = '==> '
     request_params = {}
     attr_lock = Lock()
+    _last_response = None
 
     def initialize(self, conf):
         """
@@ -109,10 +110,13 @@ class StewardREPL(Cmd):
         """ Start running the interactive session (blocking) """
         while self.running:
             try:
+                self._last_response = None
                 self.cmdloop()
             except KeyboardInterrupt:
                 print
             except:
+                if self._last_response is not None:
+                    print self._last_response.text
                 traceback.print_exc()
 
     def _needs_auth(self):
@@ -304,6 +308,7 @@ class StewardREPL(Cmd):
                 kwargs[key] = json.dumps(value)
         response = requests.post(url, data=kwargs, cookies=self.cookies,
                                  **self.request_params)
+        self._last_response = response
         if not response.ok:
             try:
                 data = response.json()
